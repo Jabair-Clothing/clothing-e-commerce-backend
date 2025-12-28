@@ -58,25 +58,13 @@ class Product extends Model
     }
 
 
-    public function getIsBundleAttribute()
-    {
-        return BundleItem::where('bundle_item_id', $this->id)->exists();
-    }
-
     public function coupons()
     {
         return $this->belongsToMany(Coupon::class, 'coupon__products', 'product_id', 'coupon_id');
-        // Check coupon__products keys. Usually it was 'item_id'?
-        // Existing Item.php said: return $this->belongsToMany(Coupon::class, 'coupon__products');
-        // I should stick to default keys or check coupon__products definition. 
-        // Step 122 showed 'create_coupon__products_table.php'.
     }
 
     public function ratings()
     {
         return $this->hasMany(Reating::class, 'product_id');
-        // Existing Item.php said 'product_id' in ratings relations? 
-        // "return $this->hasMany(Reating::class, 'product_id');" 
-        // So it was already using product_id? Interesting.
     }
 }

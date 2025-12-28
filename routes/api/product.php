@@ -9,6 +9,7 @@ use App\Http\Controllers\BundleItem\BundleItemController;
 use App\Http\Controllers\Product\PublicProductController;
 
 
+
 // Public Routes
 Route::prefix('products')->group(function () {
     Route::get('/', [PublicProductController::class, 'index']);
