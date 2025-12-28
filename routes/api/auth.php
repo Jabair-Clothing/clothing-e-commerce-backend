@@ -6,7 +6,7 @@ use App\Http\Controllers\Passwort\ForgotPasswordController;
 use App\Http\Controllers\Auth\AuthController;
 
 // Admin Auth
-Route::middleware('auth:sanctum', 'role:admin')->group(function () {
+Route::middleware('auth:api', 'role:admin')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
     Route::delete('/stuff/delete/{userid}', [AuthController::class, 'destroy']);
     Route::patch('/users/toggle-status/{userid}', [AuthController::class, 'toggleStatus']);
@@ -34,7 +34,7 @@ Route::post('/password/reset', [ForgotPasswordController::class, 'resetPassword'
     ->name('password.reset');
 
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware('auth:api')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/profile', [AuthController::class, 'profile']);
     Route::put('/update-user-info', [AuthController::class, 'updateUserInfo']);

@@ -39,7 +39,7 @@ class AuthController extends Controller
                 'password' => Hash::make($request->password),
             ]);
 
-            $token = $user->createToken('auth_token')->plainTextToken;
+            $token = auth('api')->login($user);
 
             return response()->json([
                 'success' => true,
@@ -79,14 +79,12 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         try {
-            $request->validate([
+            $credentials = $request->validate([
                 'email' => 'required|email',
                 'password' => 'required',
             ]);
 
-            $user = User::where('email', $request->email)->first();
-
-            if (!$user || !Hash::check($request->password, $user->password)) {
+            if (! $token = auth('api')->attempt($credentials)) {
                 return response()->json([
                     'success' => false,
                     'status' => 401,
@@ -96,8 +94,11 @@ class AuthController extends Controller
                 ], 401);
             }
 
+            $user = auth('api')->user();
+
             // Check role exists
             if (empty($user->role)) {
+                auth('api')->logout();
                 return response()->json([
                     'success' => false,
                     'status' => 403,
@@ -109,6 +110,7 @@ class AuthController extends Controller
 
             // Check status is active (1)
             if ($user->status != 1) {
+                auth('api')->logout();
                 return response()->json([
                     'success' => false,
                     'status' => 403,
@@ -117,8 +119,6 @@ class AuthController extends Controller
                     'errors' => 'Account inactive.',
                 ], 403);
             }
-
-            $token = $user->createToken('auth_token')->plainTextToken;
 
             return response()->json([
                 'success' => true,
@@ -212,7 +212,7 @@ class AuthController extends Controller
     public function logout(Request $request)
     {
         try {
-            $request->user()->tokens()->delete();
+            auth('api')->logout();
 
             return response()->json([
                 'success' => true,
@@ -225,13 +225,6 @@ class AuthController extends Controller
             // Extract only the main error message
             $errorMessage = $e->getMessage();
 
-            // Check if it's a SQL Integrity Constraint Violation
-            if (str_contains($errorMessage, 'Integrity constraint violation')) {
-                preg_match("/Duplicate entry '(.+?)' for key '(.+?)'/", $errorMessage, $matches);
-                if (!empty($matches)) {
-                    $errorMessage = "Duplicate entry '{$matches[1]}' for key '{$matches[2]}'";
-                }
-            }
             return response()->json([
                 'success' => false,
                 'status' => 500,
@@ -249,7 +242,7 @@ class AuthController extends Controller
     public function profile(Request $request)
     {
         try {
-            $user = $request->user();
+            $user = auth('api')->user();
 
             return response()->json([
                 'success' => true,
@@ -432,14 +425,12 @@ class AuthController extends Controller
     // user login
     public function Userlogin(Request $request)
     {
-        $request->validate([
+        $credentials = $request->validate([
             'email' => 'required|email',
             'password' => 'required|string',
         ]);
 
-        $user = User::where('email', $request->email)->first();
-
-        if (!$user || !Hash::check($request->password, $user->password)) {
+        if (! $token = auth('api')->attempt($credentials)) {
             return response()->json([
                 'success' => false,
                 'status' => 401,
@@ -449,7 +440,10 @@ class AuthController extends Controller
             ], 401);
         }
 
+        $user = auth('api')->user();
+
         if ($user->type !== 'user') {
+            auth('api')->logout();
             return response()->json([
                 'success' => false,
                 'status' => 403,
@@ -460,6 +454,7 @@ class AuthController extends Controller
         }
 
         if ($user->status != 1) {
+            auth('api')->logout();
             return response()->json([
                 'success' => false,
                 'status' => 403,
@@ -468,8 +463,6 @@ class AuthController extends Controller
                 'errors' => 'Account inactive.',
             ], 403);
         }
-
-        $token = $user->createToken('auth_token')->plainTextToken;
 
         // Method 1: Using Cookie facade (Recommended)
         $cookie = Cookie::make(
@@ -483,8 +476,6 @@ class AuthController extends Controller
             false,          // raw
             'None'          // SameSite = None
         );
-
-
 
         return response()->json([
             'success' => true,
@@ -525,7 +516,8 @@ class AuthController extends Controller
             }
 
             // Get the authenticated user
-            $user = Auth::user();
+            // Get the authenticated user
+            $user = auth('api')->user();
 
             // Check if the current password matches
             if (!Hash::check($request->current_password, $user->password)) {
@@ -579,7 +571,7 @@ class AuthController extends Controller
             // Validate the request
             $validator = Validator::make($request->all(), [
                 'name' => 'sometimes|string|max:255',
-                'email' => 'sometimes|string|email|max:255|unique:users,email,' . Auth::id(),
+                'email' => 'sometimes|string|email|max:255|unique:users,email,' . auth('api')->id(),
                 'phone' => 'sometimes|string|max:20',
                 'address' => 'sometimes|string|max:255',
             ]);
@@ -596,7 +588,8 @@ class AuthController extends Controller
             }
 
             // Get the authenticated user
-            $user = Auth::user();
+            // Get the authenticated user
+            $user = auth('api')->user();
 
             // Update the user info
             $user->update($request->only(['name', 'email', 'phone', 'address']));
