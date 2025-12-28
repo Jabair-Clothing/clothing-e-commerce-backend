@@ -7,7 +7,7 @@ use App\Http\Controllers\Company\CompanyController;
 use App\Http\Controllers\Project\ProjectController;
 
 // those are zantech landing page apis
-Route::middleware('auth:sanctum', 'role:admin,stuff,member')->group(function () {
+Route::middleware('auth:api', 'role:admin,stuff,member')->group(function () {
 
     // Contact Us
     Route::prefix('contact')->group(function () {

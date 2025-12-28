@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 use App\Models\Cetagory as Category;
 use App\Models\Cetagory_Product_list;
 use Illuminate\Support\Facades\Validator;
-use App\Models\Item;
+use App\Models\Product;
 use Illuminate\Support\Str;
 use App\Helpers\ActivityHelper;
 
@@ -423,7 +423,7 @@ class CategoryController extends Controller
             }
 
             // Find the product
-            $product = Item::find($product_id);
+            $product = Product::find($product_id);
 
             // Check if the product exists
             if (!$product) {

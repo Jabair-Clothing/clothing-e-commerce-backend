@@ -19,6 +19,6 @@ class Order_list extends Model
     // Relationship with Item
     public function item()
     {
-        return $this->belongsTo(Item::class, 'product_id');
+        return $this->belongsTo(Product::class, 'product_id');
     }
 }

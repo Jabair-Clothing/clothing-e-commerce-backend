@@ -3,7 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Wishlist\WishlistController;
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware('auth:api')->group(function () {
 
     // whshltist routes
     Route::prefix('wishlist')->group(function () {

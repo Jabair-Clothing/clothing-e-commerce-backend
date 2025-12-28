@@ -3,7 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Report\ReportController;
 
-Route::middleware('auth:sanctum', 'role:admin,stuff,member')->group(function () {
+Route::middleware('auth:api', 'role:admin,stuff,member')->group(function () {
 
     // reposts routes
     Route::prefix('reports')->group(function () {

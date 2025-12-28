@@ -19,7 +19,7 @@ Route::prefix('products')->group(function () {
 });
 
 
-Route::middleware('auth:sanctum', 'role:admin,stuff,member')->group(function () {
+Route::middleware('auth:api', 'role:admin,stuff,member')->group(function () {
     // All Products Routes
     Route::prefix('products')->group(function () {
         Route::post('/', [ProductController::class, 'store']);

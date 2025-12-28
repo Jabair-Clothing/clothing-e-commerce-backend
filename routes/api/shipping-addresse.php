@@ -3,7 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Shipping\ShippingController;
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware('auth:api')->group(function () {
     // Shipping Address Routes
     Route::prefix('shipping-addresses')->group(function () {
         Route::post('/', [ShippingController::class, 'store']);

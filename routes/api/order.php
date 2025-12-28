@@ -4,7 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Order\OrderController;
 
 Route::post('orders/place-order', [OrderController::class, 'placeOrder']);
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware('auth:api')->group(function () {
     // Order Routes for admin
     Route::prefix('orders')->group(function () {
         Route::get('/users', [OrderController::class, 'userindex']);
@@ -13,7 +13,7 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 
-Route::middleware('auth:sanctum', 'role:admin,stuff,member')->group(function () {
+Route::middleware('auth:api', 'role:admin,stuff,member')->group(function () {
     // Order Routes for admin
     Route::prefix('orders')->group(function () {
         Route::get('/', [OrderController::class, 'adminindex']);

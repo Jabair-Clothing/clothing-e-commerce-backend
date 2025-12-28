@@ -21,6 +21,6 @@ class Coupon_Product extends Model
 
     public function item()
     {
-        return $this->belongsTo(Item::class);
+        return $this->belongsTo(Product::class);
     }
 }

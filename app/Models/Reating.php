@@ -19,7 +19,7 @@ class Reating extends Model
     // Relationship with Item (product)
     public function product()
     {
-        return $this->belongsTo(Item::class, 'product_id');
+        return $this->belongsTo(Product::class, 'product_id');
     }
 
     public function user()

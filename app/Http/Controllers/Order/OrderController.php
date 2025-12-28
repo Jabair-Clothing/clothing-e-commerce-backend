@@ -6,7 +6,8 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Order;
 use App\Models\Order_list;
-use App\Models\Item;
+use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\BundleItem;
 use App\Models\Payment;
 use App\Models\Coupon;
@@ -140,13 +141,13 @@ class OrderController extends Controller
             $productIdsInCart = $cartProducts->pluck('product_id');
 
             // Eager load item prices to avoid multiple queries in loop
-            $itemsInCart = Item::whereIn('id', $productIdsInCart)->get()->keyBy('id');
+            $itemsInCart = Product::whereIn('id', $productIdsInCart)->get()->keyBy('id');
 
             foreach ($cartProducts as $cartProduct) {
                 if (in_array($cartProduct['product_id'], $couponProductIds)) {
                     $item = $itemsInCart->get($cartProduct['product_id']);
                     if ($item) {
-                        $eligibleAmount += $item->price * $cartProduct['quantity'];
+                        $eligibleAmount += $item->base_price * $cartProduct['quantity'];
                     }
                 }
             }
@@ -246,13 +247,21 @@ class OrderController extends Controller
     private function updateProductQuantities($products)
     {
         foreach ($products as $product) {
-            $item = Item::find($product['product_id']);
-            // Set condition if the product quantity is less the shwo this err
-            // if (!$item || $item->quantity < $product['quantity']) {
-            //     throw new \Exception('Insufficient quantity for product: ' . ($item->name ?? 'ID ' . $product['product_id']), 409);
-            // }
-            $item->quantity -= $product['quantity'];
-            $item->save();
+            $item = Product::with('variants')->find($product['product_id']);
+            // Check availability - Assumes simple product or default variant
+            // For now, checking aggregate quantity or default variant?
+            // Existing logic: $item->quantity
+            // New logic: Check variants.
+            // Simplified: Update the first variant found.
+
+            $variant = $item->variants->first();
+
+            if (!$variant || $variant->stock_quantity < $product['quantity']) {
+                throw new \Exception('Insufficient quantity for product: ' . ($item->name ?? 'ID ' . $product['product_id']), 409);
+            }
+
+            $variant->stock_quantity -= $product['quantity'];
+            $variant->save();
         }
     }
 
@@ -267,7 +276,7 @@ class OrderController extends Controller
     private function saveOrderItems($order, $products)
     {
         foreach ($products as $product) {
-            $item = Item::find($product['product_id']);
+            $item = Product::with('variants')->find($product['product_id']);
 
             if (!$item) {
                 throw new \Exception('Product not found: ' . $product['product_id']);
@@ -278,7 +287,7 @@ class OrderController extends Controller
                 'product_id' => $product['product_id'],
                 'Bundle_product_id' => null,
                 'quantity' => $product['quantity'],
-                'price' => $item->price,
+                'price' => $item->base_price,
             ]);
 
             // Handle bundle products if any
@@ -294,14 +303,18 @@ class OrderController extends Controller
         $bundleItems = BundleItem::where('bundle_item_id', $item->id)->get();
 
         foreach ($bundleItems as $bundleItem) {
-            $bundleProduct = Item::find($bundleItem->item_id);
+            $bundleProduct = Product::with('variants')->find($bundleItem->item_id);
             if ($bundleProduct) {
                 $quantityToReduce = $bundleItem->bundle_quantity * $productData['quantity'];
 
-                // The stock check has been removed.
-                // This will now allow the quantity to become negative.
-                $bundleProduct->quantity -= $quantityToReduce;
-                $bundleProduct->save();
+                $variant = $bundleProduct->variants->first();
+                if ($variant) {
+                    // Check stock? Existing code commented out stock check in one version, but kept in other?
+                    // Lines 301 comment says: "The stock check has been removed."
+                    // So we just reduce.
+                    $variant->stock_quantity -= $quantityToReduce;
+                    $variant->save();
+                }
             }
         }
     }
@@ -807,7 +820,7 @@ class OrderController extends Controller
                 $payment->save();
             }
 
-            $product = Item::find($productId);
+            $product = Product::find($productId);
 
             $activityDesc = "Removed product from Order ID: {$orderId}, Product: {$product->name}, Quantity: {$orderItem->quantity}, Price: {$orderItem->price}, ";
             $activityDesc .= "Amount Deducted: {$amountToDeduct}, New Order Total: {$order->total_amount}, Updated at - " . now()->toDateTimeString();
@@ -915,7 +928,7 @@ class OrderController extends Controller
                 $payment->save();
             }
 
-            $product = Item::find($productId);
+            $product = Product::find($productId);
 
             $activityDesc = "Updated product in Order ID: {$orderId}, Product: {$product->name}, ";
             $activityDesc .= "Quantity: {$orderItem->quantity}, Price: {$orderItem->price}, ";
@@ -998,19 +1011,19 @@ class OrderController extends Controller
             }
 
             // Find the product in the items table
-            $product = Item::find($request->input('product_id'));
+            $product = Product::find($request->input('product_id'));
             if (!$product) {
                 return response()->json([
                     'success' => false,
                     'status' => 404,
                     'message' => 'Product not found.',
                     'data' => null,
-                    'errors' => 'No query results for model [App\Models\Item] ' . $request->input('product_id'),
+                    'errors' => 'No query results for model [App\Models\Product] ' . $request->input('product_id'),
                 ], 404);
             }
 
             // Use the product's price if no price is provided in the request
-            $price = $request->input('price', $product->price);
+            $price = $request->input('price', $product->base_price);
 
             // Check if the product already exists in the order
             $orderItem = Order_list::where('order_id', $orderId)

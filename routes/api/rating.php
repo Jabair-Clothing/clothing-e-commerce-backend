@@ -3,7 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Rating\RatingController;
 
-Route::middleware('auth:sanctum', 'role:admin,stuff,member')->group(function () {
+Route::middleware('auth:api', 'role:admin,stuff,member')->group(function () {
 
     // Rating Routes
     Route::prefix('ratings')->group(function () {
@@ -13,7 +13,7 @@ Route::middleware('auth:sanctum', 'role:admin,stuff,member')->group(function () 
     });
 });
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware('auth:api')->group(function () {
 
     // Rating Routes
     Route::prefix('ratings')->group(function () {

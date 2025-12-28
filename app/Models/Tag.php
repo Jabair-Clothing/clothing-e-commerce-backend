@@ -17,6 +17,6 @@ class Tag extends Model
     // Relationship with Item (product)
     public function product()
     {
-        return $this->belongsTo(Item::class, 'item_id');
+        return $this->belongsTo(Product::class, 'item_id');
     }
 }
