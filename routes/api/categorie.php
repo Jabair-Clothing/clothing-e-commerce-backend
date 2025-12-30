@@ -5,15 +5,25 @@ use App\Http\Controllers\Category\CategoryController;
 
 Route::middleware('auth:api', 'role:admin,stuff,member')->group(function () {
 
-    // All Categories Routes
+    // Parent Categories Routes
+    Route::prefix('categories/parents')->group(function () {
+        Route::post('/', [CategoryController::class, 'storeParent']);
+        Route::get('/', [CategoryController::class, 'indexParents']);
+        Route::get('/{id}', [CategoryController::class, 'showParent']);
+        Route::put('/{id}', [CategoryController::class, 'updateParent']);
+        Route::delete('/{id}', [CategoryController::class, 'destroyParent']);
+    });
+
+    // Sub Categories Routes
     Route::prefix('categories')->group(function () {
-        Route::post('/', [CategoryController::class, 'store']);
-        Route::get('/', [CategoryController::class, 'index']);
-        Route::get('/{categorie_id}', [CategoryController::class, 'show']);
-        Route::put('/{categorie_id}', [CategoryController::class, 'update']);
-        Route::delete('/{categorie_id}', [CategoryController::class, 'destroy']);
-        Route::patch('/toggle-status/{categorie_id}', [CategoryController::class, 'toggleStatus']);
+        Route::post('/', [CategoryController::class, 'storeSubCategory']);
+        Route::get('/', [CategoryController::class, 'indexSubCategories']);
+        Route::get('/{id}', [CategoryController::class, 'showSubCategory']);
+        Route::put('/{id}', [CategoryController::class, 'updateSubCategory']);
+        Route::delete('/{id}', [CategoryController::class, 'destroySubCategory']);
     });
 });
 
-Route::get('/categories', [CategoryController::class, 'index']);
+// Public Routes (if needed)
+Route::get('/public/categories/parents', [CategoryController::class, 'indexParents']);
+Route::get('/public/categories', [CategoryController::class, 'indexSubCategories']);

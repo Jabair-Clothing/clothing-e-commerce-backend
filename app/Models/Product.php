@@ -16,6 +16,7 @@ class Product extends Model
         'short_description',
         'is_active',
         'base_price',
+        'parent_category_id',
         'category_id',
         'meta_title',
         'meta_description',
@@ -27,36 +28,35 @@ class Product extends Model
         'base_price' => 'decimal:2',
     ];
 
-    // Relationship with Category
+    public function parentCategory()
+    {
+        return $this->belongsTo(ParentCategory::class, 'parent_category_id');
+    }
+
     public function category()
     {
         return $this->belongsTo(Category::class, 'category_id');
     }
 
-    // Variants
     public function variants()
     {
         return $this->hasMany(ProductVariant::class);
     }
 
-    // Images
     public function images()
     {
         return $this->hasMany(ProductImage::class)->orderBy('sort_order');
     }
 
-    // Primary Image
     public function primaryImage()
     {
         return $this->hasOne(ProductImage::class)->where('is_primary', true);
     }
 
-    // Relationship with Tag (Keep existing if compatible)
     public function tags()
     {
-        return $this->hasMany(Tag::class, 'item_id'); // If tags table still uses item_id, we might need to update migration for tags too. 
+        return $this->hasMany(Tag::class, 'item_id');
     }
-
 
     public function coupons()
     {
