@@ -15,7 +15,7 @@ Route::middleware('auth:api', 'role:admin,stuff,member')->group(function () {
     });
 
     // Sub Categories Routes
-    Route::prefix('categories')->group(function () {
+    Route::prefix('categories' )->group(function () {
         Route::post('/', [CategoryController::class, 'storeSubCategory']);
         Route::get('/', [CategoryController::class, 'indexSubCategories']);
         Route::get('/{id}', [CategoryController::class, 'showSubCategory']);
