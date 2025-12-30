@@ -17,7 +17,7 @@ class FileUploadService
 
         $filename = Str::slug($originalName, '_') . "_{$prefix}_" . time() . '.' . $extension;
 
-        Storage::disk('media')->putFileAs($folder, $file, $filename);
+        Storage::disk('public')->putFileAs($folder, $file, $filename);
 
         return $folder . '/' . $filename;
     }
@@ -27,8 +27,8 @@ class FileUploadService
      */
     public static function delete($path)
     {
-        if ($path && Storage::disk('media')->exists($path)) {
-            Storage::disk('media')->delete($path);
+        if ($path && Storage::disk('public')->exists($path)) {
+            Storage::disk('public')->delete($path);
         }
     }
 
@@ -44,7 +44,7 @@ class FileUploadService
             $extension = $file->getClientOriginalExtension();
             $filename = $cleanName . "_{$prefix}_" . time() . '.' . $extension;
 
-            Storage::disk('media')->putFileAs($folder, $file, $filename);
+            Storage::disk('public')->putFileAs($folder, $file, $filename);
             $paths[] = $folder . '/' . $filename;
         }
 
@@ -57,7 +57,7 @@ class FileUploadService
      */
     public static function getUrl($path)
     {
-        return $path ? Storage::disk('media')->url($path) : null;
+        return $path ? Storage::disk('public')->url($path) : null;
     }
 
     /**
@@ -70,7 +70,7 @@ class FileUploadService
         }
 
         return array_map(function ($path) {
-            return Storage::disk('media')->url($path);
+            return Storage::disk('public')->url($path);
         }, $paths);
     }
 }
