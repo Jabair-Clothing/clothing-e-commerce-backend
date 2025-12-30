@@ -10,7 +10,7 @@ class FileUploadService
     /**
      * Upload single file
      */
-    public static function upload($file, $folder = 'uploads', $prefix = 'zantech')
+    public static function upload($file, $folder = 'uploads', $prefix = 'clothing')
     {
         $originalName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
         $extension = $file->getClientOriginalExtension();
@@ -35,7 +35,7 @@ class FileUploadService
     /**
      * Upload multiple files
      */
-    public static function uploadMultiple($files, $folder = 'uploads', $prefix = 'zantech', $name = null)
+    public static function uploadMultiple($files, $folder = 'uploads', $prefix = 'clothing', $name = null)
     {
         $paths = [];
 
