@@ -5,8 +5,8 @@ namespace App\Http\Controllers\product;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Item;
-use App\Models\Cetagory_Product_list;
-use App\Models\Cetagory;
+use App\Models\CategoryProductList;
+use App\Models\Category;
 use App\Models\Order_list;
 use Illuminate\Support\Facades\DB;
 use App\Traits\ApiResponser;
@@ -634,14 +634,14 @@ class PublicProductController extends Controller
             $currentPage = $request->input('page');
 
             // Fetch category
-            $category = Cetagory::where('slug', $slug)->first();
+            $category = Category::where('slug', $slug)->first();
 
             if (!$category) {
                 return $this->notFound('Category not found.');
             }
 
             // Fetch product IDs under this category
-            $productIds = Cetagory_Product_list::where('category_id', $category->id)
+            $productIds = CategoryProductList::where('category_id', $category->id)
                 ->pluck('item_id');
 
             // Fetch products with first image

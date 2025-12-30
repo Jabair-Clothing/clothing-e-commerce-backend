@@ -10,7 +10,7 @@ use App\Models\ProductVariant;
 use App\Models\File;
 use App\Models\Tag;
 use App\Models\BundleItem;
-use App\Models\Cetagory_Product_list;
+use App\Models\CategoryProductList;
 use App\Models\Challan_item;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
@@ -34,7 +34,7 @@ class ProductController extends Controller
                 'price' => 'required|numeric|min:0',
                 'discount' => 'nullable|numeric|min:0|max:100',
                 'categories' => 'required|array',
-                'categories.*' => 'exists:cetagories,id',
+                'categories.*' => 'exists:categories,id',
                 'tags' => 'nullable|array',
                 'tags.*' => 'string|max:255',
                 'images' => 'nullable|array',
@@ -120,7 +120,7 @@ class ProductController extends Controller
             // But if existing code relies on it, keep it.
             if ($request->has('categories')) {
                 foreach ($request->categories as $categoryId) {
-                    Cetagory_Product_list::create([
+                    CategoryProductList::create([
                         'category_id' => $categoryId,
                         'item_id' => $product->id,
                     ]);
@@ -352,7 +352,7 @@ class ProductController extends Controller
             }
 
             // Delete related records from Cetagory_Product_list, Tag, and File tables
-            Cetagory_Product_list::where('item_id', $product_id)->delete();
+            CategoryProductList::where('item_id', $product_id)->delete();
             Tag::where('item_id', $product_id)->delete();
             // Delete the product
             $product->delete();

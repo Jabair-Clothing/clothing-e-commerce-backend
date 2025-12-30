@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Cetagory_Product_list extends Model
+class CategoryProductList extends Model
 {
     use HasFactory;
 
@@ -14,9 +14,9 @@ class Cetagory_Product_list extends Model
         'item_id',
     ];
 
-    // Relationship with Cetagory
+    // Relationship with Category
     public function category()
     {
-        return $this->belongsTo(Cetagory::class, 'category_id');
+        return $this->belongsTo(Category::class, 'category_id');
     }
 }

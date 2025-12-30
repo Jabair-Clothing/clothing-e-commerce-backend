@@ -4,10 +4,11 @@ namespace App\Http\Controllers\Category;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use App\Models\Cetagory as Category;
-use App\Models\Cetagory_Product_list;
+use App\Models\Category;
+use App\Models\CategoryProductList;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Product;
+use App\Models\Item;
 use Illuminate\Support\Str;
 use App\Helpers\ActivityHelper;
 
@@ -344,7 +345,7 @@ class CategoryController extends Controller
             // Validate the request data
             $validator = Validator::make($request->all(), [
                 'category_id' => 'required|array',
-                'category_id.*' => 'exists:cetagories,id',
+                'category_id.*' => 'exists:categories,id',
             ]);
 
             // If validation fails, return error response
@@ -375,7 +376,7 @@ class CategoryController extends Controller
             // Attach categories to the product
             $categoryIds = $request->category_id;
             foreach ($categoryIds as $categoryId) {
-                Cetagory_Product_list::create([
+                CategoryProductList::create([
                     'category_id' => $categoryId,
                     'item_id' => $product_id,
                 ]);
@@ -408,7 +409,7 @@ class CategoryController extends Controller
             // Validate the request data
             $validator = Validator::make($request->all(), [
                 'category_id' => 'required|array',
-                'category_id.*' => 'exists:cetagories,id',
+                'category_id.*' => 'exists:categories,id',
             ]);
 
             // If validation fails, return error response
@@ -438,7 +439,7 @@ class CategoryController extends Controller
 
             // Remove categories from the product
             $categoryIds = $request->category_id;
-            Cetagory_Product_list::where('item_id', $product_id)
+            CategoryProductList::where('item_id', $product_id)
                 ->whereIn('category_id', $categoryIds)
                 ->delete();
 

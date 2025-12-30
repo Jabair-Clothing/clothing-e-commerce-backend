@@ -7,10 +7,10 @@ use App\Http\Controllers\Auth\AuthController;
 
 // Admin Auth
 Route::middleware('auth:api', 'role:admin')->group(function () {
-    Route::post('/register', [AuthController::class, 'register']);
     Route::delete('/stuff/delete/{userid}', [AuthController::class, 'destroy']);
     Route::patch('/users/toggle-status/{userid}', [AuthController::class, 'toggleStatus']);
 });
+Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 
 // User Auth

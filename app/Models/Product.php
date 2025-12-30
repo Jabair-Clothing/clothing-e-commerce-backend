@@ -30,7 +30,7 @@ class Product extends Model
     // Relationship with Category
     public function category()
     {
-        return $this->belongsTo(Cetagory::class, 'category_id');
+        return $this->belongsTo(Category::class, 'category_id');
     }
 
     // Variants

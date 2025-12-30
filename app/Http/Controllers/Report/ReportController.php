@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Log;
 use App\Models\Order_list;
 use Illuminate\Support\Facades\DB;
 use App\Models\Order;
-use App\Models\Cetagory;
+use App\Models\Category;
 use App\Models\Item;
 use App\Models\User;
 use App\Models\Expense;
@@ -134,8 +134,7 @@ class ReportController extends Controller
             ->groupBy('product_id')
             ->orderByDesc('total_sold')
             ->with(['item' => function ($q) {
-                $q->with(['images' => function ($imgQuery) {
-                }])->select('id', 'name', 'price');
+                $q->with(['images' => function ($imgQuery) {}])->select('id', 'name', 'price');
             }])
             ->get()
             ->map(function ($orderList) {
@@ -187,5 +186,4 @@ class ReportController extends Controller
             $sales
         );
     }
-
 }
