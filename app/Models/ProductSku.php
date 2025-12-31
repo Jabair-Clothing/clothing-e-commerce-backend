@@ -14,8 +14,6 @@ class ProductSku extends Model
         'sku',
         'quantity',
         'discount_price',
-        'image_path',
-        'image_url',
         'product_image_id',
     ];
 
