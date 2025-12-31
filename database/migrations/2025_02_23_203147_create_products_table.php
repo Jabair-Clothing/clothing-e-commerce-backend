@@ -16,6 +16,8 @@ return new class extends Migration
             $table->foreignId('parent_category_id')->nullable()->constrained('parent_categories')->onDelete('set null');
             $table->foreignId('category_id')->nullable()->constrained('categories')->onDelete('set null');
             $table->string('slug')->unique()->nullable();
+            $table->string('image_path')->nullable();
+            $table->string('image_url')->nullable();
             $table->string('name');
             $table->text('description')->nullable();
             $table->text('short_description')->nullable();

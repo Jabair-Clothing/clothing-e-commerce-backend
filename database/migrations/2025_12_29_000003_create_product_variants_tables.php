@@ -11,12 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // 4. product_variants table
-        Schema::create('product_variants', function (Blueprint $table) {
+        // 4. product_skus table
+        Schema::create('product_skus', function (Blueprint $table) {
             $table->id();
             $table->foreignId('product_id')->constrained('products')->onDelete('cascade');
 
             $table->string('sku')->unique(); // e.g., "TSHIRT-RED-XL"
+            $table->integer('quantity')->default(0);
 
             // If null, use product base_price. If set, this overrides it.
             $table->decimal('price', 10, 2)->nullable();
@@ -24,18 +25,18 @@ return new class extends Migration
             // If null, use product discount.
             $table->decimal('discount_price', 10, 2)->nullable();
 
-            $table->integer('stock_quantity')->default(0);
-
             $table->timestamps();
         });
 
-        // 5. variant_attribute_values
-        Schema::create('variant_attribute_values', function (Blueprint $table) {
+        // 5. product_sku_attributes
+        Schema::create('product_sku_attributes', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('product_variant_id')->constrained('product_variants')->onDelete('cascade');
+            $table->foreignId('product_sku_id')->constrained('product_skus')->onDelete('cascade');
+            $table->foreignId('attribute_id')->constrained('attributes')->onDelete('cascade');
             $table->foreignId('attribute_value_id')->constrained('attribute_values')->onDelete('cascade');
+
             // Helps duplicate checks (e.g. Ensure you don't have two variants for Red-XL)
-            $table->unique(['product_variant_id', 'attribute_value_id'], 'variant_val_unique');
+            $table->unique(['product_sku_id', 'attribute_id', 'attribute_value_id'], 'sku_attr_unique');
         });
     }
 
@@ -44,7 +45,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('variant_attribute_values');
-        Schema::dropIfExists('product_variants');
+        Schema::dropIfExists('product_sku_attributes');
+        Schema::dropIfExists('product_skus');
     }
 };

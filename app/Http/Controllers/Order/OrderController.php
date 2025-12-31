@@ -7,8 +7,8 @@ use Illuminate\Http\Request;
 use App\Models\Order;
 use App\Models\Order_list;
 use App\Models\Product;
-use App\Models\ProductVariant;
-use App\Models\BundleItem;
+use App\Models\ProductSku;
+// use App\Models\BundleItem;
 use App\Models\Payment;
 use App\Models\Coupon;
 use Illuminate\Support\Facades\DB;
@@ -247,21 +247,21 @@ class OrderController extends Controller
     private function updateProductQuantities($products)
     {
         foreach ($products as $product) {
-            $item = Product::with('variants')->find($product['product_id']);
+            $item = Product::with('skus')->find($product['product_id']);
             // Check availability - Assumes simple product or default variant
             // For now, checking aggregate quantity or default variant?
             // Existing logic: $item->quantity
-            // New logic: Check variants.
-            // Simplified: Update the first variant found.
+            // New logic: Check skus.
+            // Simplified: Update the first sku found.
 
-            $variant = $item->variants->first();
+            $sku = $item->skus->first();
 
-            if (!$variant || $variant->stock_quantity < $product['quantity']) {
+            if (!$sku || $sku->quantity < $product['quantity']) {
                 throw new \Exception('Insufficient quantity for product: ' . ($item->name ?? 'ID ' . $product['product_id']), 409);
             }
 
-            $variant->stock_quantity -= $product['quantity'];
-            $variant->save();
+            $sku->quantity -= $product['quantity'];
+            $sku->save();
         }
     }
 
@@ -276,7 +276,7 @@ class OrderController extends Controller
     private function saveOrderItems($order, $products)
     {
         foreach ($products as $product) {
-            $item = Product::with('variants')->find($product['product_id']);
+            $item = Product::with('skus')->find($product['product_id']);
 
             if (!$item) {
                 throw new \Exception('Product not found: ' . $product['product_id']);
@@ -291,32 +291,30 @@ class OrderController extends Controller
             ]);
 
             // Handle bundle products if any
-            if ($item->is_bundle) {
-                $this->handleBundleProducts($order, $product, $item);
-            }
+            // if ($item->is_bundle) {
+            //     $this->handleBundleProducts($order, $product, $item);
+            // }
         }
     }
 
     // Handle bundle products (Slightly optimized to avoid refetching item)
     private function handleBundleProducts($order, $productData, $item)
     {
-        $bundleItems = BundleItem::where('bundle_item_id', $item->id)->get();
+        // $bundleItems = BundleItem::where('bundle_item_id', $item->id)->get();
 
-        foreach ($bundleItems as $bundleItem) {
-            $bundleProduct = Product::with('variants')->find($bundleItem->item_id);
-            if ($bundleProduct) {
-                $quantityToReduce = $bundleItem->bundle_quantity * $productData['quantity'];
+        // foreach ($bundleItems as $bundleItem) {
+        //     $bundleProduct = Product::with('skus')->find($bundleItem->item_id);
+        //     if ($bundleProduct) {
+        //         $quantityToReduce = $bundleItem->bundle_quantity * $productData['quantity'];
 
-                $variant = $bundleProduct->variants->first();
-                if ($variant) {
-                    // Check stock? Existing code commented out stock check in one version, but kept in other?
-                    // Lines 301 comment says: "The stock check has been removed."
-                    // So we just reduce.
-                    $variant->stock_quantity -= $quantityToReduce;
-                    $variant->save();
-                }
-            }
-        }
+        //         $sku = $bundleProduct->skus->first();
+        //         if ($sku) {
+        //             // Check stock?
+        //             $sku->quantity -= $quantityToReduce;
+        //             $sku->save();
+        //         }
+        //     }
+        // }
     }
     // private function handleBundleProducts($order, $productData, $item)
     // {

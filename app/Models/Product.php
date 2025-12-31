@@ -12,6 +12,8 @@ class Product extends Model
     protected $fillable = [
         'name',
         'slug',
+        'image_path',
+        'image_url',
         'description',
         'short_description',
         'is_active',
@@ -38,9 +40,9 @@ class Product extends Model
         return $this->belongsTo(Category::class, 'category_id');
     }
 
-    public function variants()
+    public function skus()
     {
-        return $this->hasMany(ProductVariant::class);
+        return $this->hasMany(ProductSku::class);
     }
 
     public function images()
@@ -51,11 +53,6 @@ class Product extends Model
     public function primaryImage()
     {
         return $this->hasOne(ProductImage::class)->where('is_primary', true);
-    }
-
-    public function tags()
-    {
-        return $this->hasMany(Tag::class, 'item_id');
     }
 
     public function coupons()

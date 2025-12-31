@@ -9,15 +9,15 @@ class AttributeValue extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['attribute_id', 'value', 'color_code'];
+    protected $fillable = ['attribute_id', 'name', 'code'];
 
     public function attribute()
     {
         return $this->belongsTo(Attribute::class);
     }
 
-    public function productVariants()
+    public function productSkus()
     {
-        return $this->belongsToMany(ProductVariant::class, 'variant_attribute_values');
+        return $this->belongsToMany(ProductSku::class, 'product_sku_attributes');
     }
 }

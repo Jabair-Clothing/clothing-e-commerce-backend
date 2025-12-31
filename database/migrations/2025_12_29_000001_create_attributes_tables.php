@@ -15,7 +15,7 @@ return new class extends Migration
         Schema::create('attributes', function (Blueprint $table) {
             $table->id();
             $table->string('name'); // e.g., "Color", "Size"
-            $table->string('code')->unique(); // e.g., "color", "size"
+            $table->string('slug')->unique(); // e.g., "color", "size"
             $table->timestamps();
         });
 
@@ -23,8 +23,8 @@ return new class extends Migration
         Schema::create('attribute_values', function (Blueprint $table) {
             $table->id();
             $table->foreignId('attribute_id')->constrained()->onDelete('cascade');
-            $table->string('value'); // e.g., "Red", "XL"
-            $table->string('color_code')->nullable(); // e.g., "#FF0000"
+            $table->string('name'); // e.g., "Red", "XL"
+            $table->string('code')->nullable(); // e.g., "#FF0000" or simple code
             $table->timestamps();
         });
     }

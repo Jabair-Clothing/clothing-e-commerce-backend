@@ -5,16 +5,16 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class ProductVariant extends Model
+class ProductSku extends Model
 {
     use HasFactory;
 
     protected $fillable = [
         'product_id',
         'sku',
+        'quantity',
         'price',
         'discount_price',
-        'stock_quantity'
     ];
 
     public function product()
@@ -22,8 +22,8 @@ class ProductVariant extends Model
         return $this->belongsTo(Product::class);
     }
 
-    public function attributeValues()
+    public function attributes()
     {
-        return $this->belongsToMany(AttributeValue::class, 'variant_attribute_values');
+        return $this->hasMany(ProductSkuAttribute::class);
     }
 }
