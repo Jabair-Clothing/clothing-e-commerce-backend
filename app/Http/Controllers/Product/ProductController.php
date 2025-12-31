@@ -13,6 +13,7 @@ use App\Models\ProductImage;
 use Illuminate\Support\Str;
 use App\Traits\ApiResponser;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Storage;
 
 class ProductController extends Controller
 {
@@ -268,17 +269,42 @@ class ProductController extends Controller
     public function destroy($id)
     {
         try {
-            $product = Product::find($id);
+            $product = Product::with(['images', 'skus'])->find($id);
+
             if (!$product) {
                 return $this->error('Product not found.', 404);
             }
 
-            // Cleanup
-            // Images (physically delete?)
-            // SKUs cascade?
-            $product->delete(); // Assuming Cascades or separate cleanup
+            // 1. Delete Product Images (Files + Records)
+            if ($product->images && $product->images->count() > 0) {
+                foreach ($product->images as $image) {
+                    if ($image->image_path && Storage::disk('public')->exists($image->image_path)) {
+                        Storage::disk('public')->delete($image->image_path);
+                    }
+                    $image->delete();
+                }
+            }
 
-            return $this->success(null, 'Product deleted successfully.');
+            // 2. Delete SKUs (and implicitly their attributes via cascade if set, but we can do manually for safety)
+            // SKUs might have individual images too if they weren't in the main images list (though logic puts them there too now)
+            foreach ($product->skus as $sku) {
+                // If SKU has an image path that ISN'T in the main product images table (unlikely with current store logic, 
+                // but possible from older logic or direct DB edits), we should check.
+                // However, current logic saves to ProductImage, so strict deleting from ProductImage loop above covers it.
+                // Just to be safe, if we had standalone sku images in future:
+                if ($sku->image_path && Storage::disk('public')->exists($sku->image_path)) {
+                    // Check if this file was already deleted via product->images loop?
+                    // If it points to same file, Storage::delete won't error if missing usually, or we can check exists.
+                    Storage::disk('public')->delete($sku->image_path);
+                }
+
+                $sku->attributes()->delete(); // Clear pivot
+                $sku->delete();
+            }
+
+            $product->delete();
+
+            return $this->success(null, 'Product and associated data deleted successfully.');
         } catch (\Exception $e) {
             return $this->error('Failed to delete product.', 500, $e->getMessage());
         }
