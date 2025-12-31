@@ -13,13 +13,20 @@ class ProductSku extends Model
         'product_id',
         'sku',
         'quantity',
-        'price',
         'discount_price',
+        'image_path',
+        'image_url',
+        'product_image_id',
     ];
 
     public function product()
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function productImage()
+    {
+        return $this->belongsTo(ProductImage::class, 'product_image_id');
     }
 
     public function attributes()
