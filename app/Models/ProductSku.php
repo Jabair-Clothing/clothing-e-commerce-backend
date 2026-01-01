@@ -15,7 +15,7 @@ class ProductSku extends Model
         'quantity',
         'price',
         'discount_price',
-        'product_image_id',
+        'is_deleted',
     ];
 
     public function product()

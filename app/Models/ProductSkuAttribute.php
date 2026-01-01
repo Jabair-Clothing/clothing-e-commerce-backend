@@ -13,6 +13,7 @@ class ProductSkuAttribute extends Model
         'product_sku_id',
         'attribute_id',
         'attribute_value_id',
+        'product_image_id'
     ];
 
     public function productSku()
@@ -28,5 +29,10 @@ class ProductSkuAttribute extends Model
     public function attributeValue()
     {
         return $this->belongsTo(AttributeValue::class);
+    }
+
+    public function productImage()
+    {
+        return $this->belongsTo(ProductImage::class);
     }
 }

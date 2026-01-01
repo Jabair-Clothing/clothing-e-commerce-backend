@@ -155,7 +155,7 @@ class ProductController extends Controller
                         'sku' => $skuCode,
                         'price' => $variantData['price'] ?? $request->price, // Default to base price if not set
                         'quantity' => $variantData['quantity'] ?? 0,
-                        'product_image_id' => $productImageId,
+                        // product_image_id removed from ProductSku
                     ]);
 
                     // Attach Attributes
@@ -166,7 +166,8 @@ class ProductController extends Controller
                                 ProductSkuAttribute::create([
                                     'product_sku_id' => $sku->id,
                                     'attribute_id' => $attrValue->attribute_id,
-                                    'attribute_value_id' => $attrValueId
+                                    'attribute_value_id' => $attrValueId,
+                                    'product_image_id' => $productImageId // Link image to attribute. Note: This links it to ALL attributes of this SKU if image is present.
                                 ]);
                             }
                         }
@@ -409,5 +410,128 @@ class ProductController extends Controller
         }
 
         return $data;
+    }
+
+    /**
+     * Upload an image for a product.
+     */
+    public function uploadImage(Request $request, $id)
+    {
+        $product = Product::find($id);
+
+        if (!$product) {
+            return $this->error('Product not found.', 404);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'image' => 'required|image|mimes:jpeg,png,jpg,webp|max:2048',
+            'product_sku_attribute_id' => 'nullable|exists:product_sku_attributes,id',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->validationError($validator->errors());
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $image = $request->file('image');
+            $path = $image->store('products', 'public');
+            $url = asset('storage/' . $path);
+
+            // Create ProductImage
+            $productImage = ProductImage::create([
+                'product_id' => $product->id,
+                'image_path' => $path,
+                'image_url' => $url,
+                'is_primary' => false,
+                'sort_order' => $product->images()->count() + 1,
+            ]);
+
+            // Link to SKU Attribute if provided
+            if ($request->product_sku_attribute_id) {
+                // Verify this attribute belongs to one of the product's SKUs
+                // Ideally check relation, but simpler query:
+                $skuAttr = ProductSkuAttribute::where('id', $request->product_sku_attribute_id)
+                    ->whereHas('productSku', function ($query) use ($product) {
+                        $query->where('product_id', $product->id);
+                    })
+                    ->first();
+
+                if ($skuAttr) {
+                    $skuAttr->update(['product_image_id' => $productImage->id]);
+                }
+            }
+
+            DB::commit();
+            return $this->created($productImage, 'Image uploaded successfully.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->error('Failed to upload image.', 500, $e->getMessage());
+        }
+    }
+
+    /**
+     * Delete a product image.
+     */
+    public function deleteImage($id, $image_id)
+    {
+        $product = Product::find($id);
+
+        if (!$product) {
+            return $this->error('Product not found.', 404);
+        }
+
+        $image = ProductImage::where('product_id', $id)->find($image_id);
+
+        if (!$image) {
+            return $this->error('Image not found.', 404);
+        }
+
+        try {
+            // Delete file
+            if ($image->image_path && Storage::disk('public')->exists($image->image_path)) {
+                Storage::disk('public')->delete($image->image_path);
+            }
+
+            // Remove reference from SKU Attributes
+            ProductSkuAttribute::where('product_image_id', $image->id)->update(['product_image_id' => null]);
+
+            $image->delete();
+
+            return $this->success(null, 'Image deleted successfully.');
+        } catch (\Exception $e) {
+            return $this->error('Failed to delete image.', 500, $e->getMessage());
+        }
+    }
+
+    /**
+     * Get SKU attributes for a product.
+     */
+    public function getSkuAttributes($id)
+    {
+        $product = Product::with(['skus.attributes.attribute', 'skus.attributes.attributeValue', 'skus.attributes.productImage'])->find($id);
+
+        if (!$product) {
+            return $this->error('Product not found.', 404);
+        }
+
+        $data = $product->skus->map(function ($sku) {
+            return [
+                'sku_id' => $sku->id,
+                'sku_code' => $sku->sku,
+                'attributes' => $sku->attributes->map(function ($skuAttr) {
+                    return [
+                        'sku_attribute_id' => $skuAttr->id,
+                        'attribute_name' => $skuAttr->attribute->name ?? null,
+                        'value_name' => $skuAttr->attributeValue->name ?? null,
+                        'product_image_id' => $skuAttr->product_image_id,
+                        'image_url' => $skuAttr->productImage ? $skuAttr->productImage->image_url : null,
+                    ];
+                })
+            ];
+        });
+
+        return $this->success($data, 'SKU attributes retrieved successfully.');
     }
 }
