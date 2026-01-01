@@ -13,6 +13,7 @@ class ProductSku extends Model
         'product_id',
         'sku',
         'quantity',
+        'price',
         'discount_price',
         'product_image_id',
     ];

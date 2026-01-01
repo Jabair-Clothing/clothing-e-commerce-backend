@@ -88,6 +88,7 @@ class ProductController extends Controller
             'variants' => 'nullable|array',
             'variants.*.sku' => 'nullable|string',
             'variants.*.price' => 'nullable|numeric|min:0',
+            'variants.*.discount_price' => 'nullable|numeric|min:0',
             'variants.*.quantity' => 'required_with:variants|integer|min:0',
             'variants.*.attributes' => 'nullable|array', // Array of attribute_value_ids
             'variants.*.attributes.*' => 'exists:attribute_values,id',
