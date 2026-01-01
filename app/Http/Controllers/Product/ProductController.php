@@ -472,6 +472,53 @@ class ProductController extends Controller
     }
 
     /**
+     * Update image details.
+     */
+    public function updateImage(Request $request, $id, $image_id)
+    {
+        $product = Product::find($id);
+
+        if (!$product) {
+            return $this->error('Product not found.', 404);
+        }
+
+        $image = ProductImage::where('product_id', $id)->find($image_id);
+
+        if (!$image) {
+            return $this->error('Image not found.', 404);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'is_primary' => 'nullable|boolean',
+            'sort_order' => 'nullable|integer',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->validationError($validator->errors());
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Handle Primary Image Logic
+            if ($request->has('is_primary') && $request->is_primary) {
+                // Set all other images to not primary
+                ProductImage::where('product_id', $id)
+                    ->where('id', '!=', $image_id)
+                    ->update(['is_primary' => false]);
+            }
+
+            $image->update($request->only(['is_primary', 'sort_order']));
+
+            DB::commit();
+            return $this->success($image, 'Image updated successfully.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->error('Failed to update image.', 500, $e->getMessage());
+        }
+    }
+
+    /**
      * Delete a product image.
      */
     public function deleteImage($id, $image_id)
