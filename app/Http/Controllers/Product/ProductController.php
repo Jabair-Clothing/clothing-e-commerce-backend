@@ -388,19 +388,30 @@ class ProductController extends Controller
                 ];
             });
             $data['skus'] = $product->skus->map(function ($sku) {
+                // Find first attribute with an image to use as "SKU Image" for main display
+                $skuImage = null;
+                foreach ($sku->attributes as $attr) {
+                    if ($attr->productImage) {
+                        $skuImage = $attr->productImage->image_url;
+                        break;
+                    }
+                }
+
                 return [
                     'id' => $sku->id,
                     'sku' => $sku->sku,
                     'price' => $sku->price,
                     'quantity' => $sku->quantity,
-                    'image' => $sku->productImage ? $sku->productImage->image_url : null,
+                    'image' => $skuImage, // Fallback to attribute image
                     'attributes' => $sku->attributes->map(function ($skuAttr) {
                         return [
                             'attribute_id' => $skuAttr->attribute_id,
                             'attribute_name' => $skuAttr->attribute->name ?? null,
                             'value_id' => $skuAttr->attribute_value_id,
                             'value_name' => $skuAttr->attributeValue->name ?? null,
-                            'value_code' => $skuAttr->attributeValue->code ?? null
+                            'value_code' => $skuAttr->attributeValue->code ?? null,
+                            'product_image_id' => $skuAttr->product_image_id,
+                            'image_url' => $skuAttr->productImage ? $skuAttr->productImage->image_url : null,
                         ];
                     })
                 ];
@@ -515,6 +526,194 @@ class ProductController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             return $this->error('Failed to update image.', 500, $e->getMessage());
+        }
+    }
+
+    /**
+     * Update product SKU details.
+     */
+    public function updateSku(Request $request, $id, $sku_id)
+    {
+        $product = Product::find($id);
+
+        if (!$product) {
+            return $this->error('Product not found.', 404);
+        }
+
+        $sku = ProductSku::where('product_id', $id)->find($sku_id);
+
+        if (!$sku) {
+            return $this->error('SKU not found.', 404);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'quantity' => 'nullable|integer|min:0',
+            'price' => 'nullable|numeric|min:0',
+            'discount_price' => 'nullable|numeric|min:0',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->validationError($validator->errors());
+        }
+
+        try {
+            $sku->update($request->only(['quantity', 'price', 'discount_price']));
+
+            return $this->success($sku, 'SKU updated successfully.');
+        } catch (\Exception $e) {
+            return $this->error('Failed to update SKU.', 500, $e->getMessage());
+        }
+    }
+
+    /**
+     * Add a new SKU to a product.
+     */
+    public function addSku(Request $request, $id)
+    {
+        $product = Product::find($id);
+
+        if (!$product) {
+            return $this->error('Product not found.', 404);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'variants' => 'required|array',
+            'variants.*.sku' => 'nullable|string',
+            'variants.*.price' => 'nullable|numeric|min:0',
+            'variants.*.quantity' => 'required_with:variants|integer|min:0',
+            'variants.*.discount_price' => 'nullable|numeric|min:0',
+            'variants.*.image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
+            'variants.*.attributes' => 'nullable|array',
+            'variants.*.attributes.*' => 'exists:attribute_values,id',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->validationError($validator->errors());
+        }
+
+        DB::beginTransaction();
+        try {
+            $createdSkus = [];
+
+            foreach ($request->variants as $index => $variantData) {
+                $skuCode = $variantData['sku'] ?? (strtoupper(Str::slug($product->name)) . '-' . Str::random(6));
+
+                // Handle Image
+                $productImageId = null;
+                if (isset($variantData['image']) && $request->hasFile("variants.{$index}.image")) {
+                    $image = $request->file("variants.{$index}.image");
+                    $path = $image->store('product_variants', 'public');
+                    $url = asset('storage/' . $path);
+
+                    $productImage = ProductImage::create([
+                        'product_id' => $product->id,
+                        'image_path' => $path,
+                        'image_url' => $url,
+                        'is_primary' => false,
+                        'sort_order' => $product->images()->count() + 1,
+                    ]);
+                    $productImageId = $productImage->id;
+                }
+
+                // Create SKU
+                $sku = ProductSku::create([
+                    'product_id' => $product->id,
+                    'sku' => $skuCode,
+                    'price' => $variantData['price'] ?? $product->base_price,
+                    'quantity' => $variantData['quantity'] ?? 0,
+                    'discount_price' => $variantData['discount_price'] ?? null,
+                ]);
+
+                // Attach Attributes
+                if (isset($variantData['attributes']) && is_array($variantData['attributes'])) {
+                    foreach ($variantData['attributes'] as $attrValueId) {
+                        $attrValue = AttributeValue::find($attrValueId);
+                        if ($attrValue) {
+                            ProductSkuAttribute::create([
+                                'product_sku_id' => $sku->id,
+                                'attribute_id' => $attrValue->attribute_id,
+                                'attribute_value_id' => $attrValueId,
+                                'product_image_id' => $productImageId // Link image to attribute
+                            ]);
+                        }
+                    }
+                }
+
+                $createdSkus[] = $sku->load('attributes.attribute', 'attributes.attributeValue', 'attributes.productImage');
+            }
+
+            DB::commit();
+            return $this->created($createdSkus, 'SKUs added successfully.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->error('Failed to add SKUs.', 500, $e->getMessage());
+        }
+    }
+
+    /**
+     * Delete SKU data (SKU or Attribute).
+     */
+    public function deleteSkuData(Request $request, $id)
+    {
+        $product = Product::find($id);
+
+        if (!$product) {
+            return $this->error('Product not found.', 404);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'sku_id' => 'nullable|exists:product_skus,id',
+            'sku_attribute_id' => 'nullable|exists:product_sku_attributes,id',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->validationError($validator->errors());
+        }
+
+        if (!$request->sku_id && !$request->sku_attribute_id) {
+            return $this->error('Either sku_id or sku_attribute_id is required.', 400);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            if ($request->sku_id) {
+                // Delete SKU and its attributes
+                $sku = ProductSku::where('product_id', $product->id)->where('id', $request->sku_id)->first();
+                if ($sku) {
+                    $sku->attributes()->delete(); // Delete linked attributes first
+                    $sku->delete();
+                    DB::commit();
+                    return $this->success(null, 'SKU and its attributes deleted successfully.');
+                } else {
+                    DB::rollBack();
+                    return $this->error('SKU not found for this product.', 404);
+                }
+            }
+
+            if ($request->sku_attribute_id) {
+                // Delete specific SKU attribute
+                // Verify it belongs to this product indirectly
+                $skuAttr = ProductSkuAttribute::where('id', $request->sku_attribute_id)
+                    ->whereHas('productSku', function ($q) use ($product) {
+                        $q->where('product_id', $product->id);
+                    })->first();
+
+                if ($skuAttr) {
+                    $skuAttr->delete();
+                    DB::commit();
+                    return $this->success(null, 'SKU attribute deleted successfully.');
+                } else {
+                    DB::rollBack();
+                    return $this->error('SKU attribute not found for this product.', 404);
+                }
+            }
+
+            DB::commit(); // Should not reach here due to logic check above, but safe keep.
+            return $this->success(null, 'Operation completed.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->error('Failed to delete SKU data.', 500, $e->getMessage());
         }
     }
 

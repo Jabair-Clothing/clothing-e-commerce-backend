@@ -14,6 +14,9 @@ Route::middleware('auth:api', 'role:admin,stuff,member')->group(function () {
     Route::post('/products/{id}/images', [ProductController::class, 'uploadImage']);
     Route::put('/products/{id}/images/{image_id}', [ProductController::class, 'updateImage']);
     Route::delete('/products/{id}/images/{image_id}', [ProductController::class, 'deleteImage']);
+    Route::put('/products/{id}/skus/{sku_id}', [ProductController::class, 'updateSku']);
+    Route::post('/products/{id}/skus', [ProductController::class, 'addSku']);
+    Route::delete('/products/{id}/sku-data', [ProductController::class, 'deleteSkuData']);
     Route::get('/products/{id}/sku-attributes', [ProductController::class, 'getSkuAttributes']);
     Route::delete('/products/{id}', [ProductController::class, 'destroy']);
 });
