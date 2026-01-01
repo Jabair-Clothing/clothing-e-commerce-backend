@@ -237,11 +237,14 @@ class ProductController extends Controller
             return $this->error('Product not found.', 404);
         }
 
-        // Just basic validation for update example
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|string|max:255',
-            'category_id' => 'sometimes|exists:categories,id',
-            'price' => 'sometimes|numeric|min:0',
+            'description' => 'nullable|string',
+            'short_description' => 'nullable|string',
+            'is_active' => 'boolean',
+            'base_price' => 'nullable|numeric|min:0',
+            'parent_category_id' => 'nullable|exists:parent_categories,id',
+            'category_id' => 'nullable|exists:categories,id',
         ]);
 
         if ($validator->fails()) {
@@ -250,10 +253,30 @@ class ProductController extends Controller
 
         DB::beginTransaction();
         try {
-            $product->update($request->only(['name', 'description', 'short_description', 'price', 'category_id', 'parent_category_id']));
-            // Note: Full update logic for SKUs/Images should be here similar to store, 
-            // but simplified here for brevity unless requested specifically to fix update too.
-            // Keeping it simple for now as user asked for "create" API. 
+            // Prepare data for update
+            $data = $request->only([
+                'name',
+                'description',
+                'short_description',
+                'is_active',
+                'base_price',
+                'parent_category_id',
+                'category_id'
+            ]);
+
+            // Auto-generate meta data if name is present
+            if ($request->has('name')) {
+                $data['slug'] = Str::slug($request->name) . '-' . Str::random(4);
+                $data['meta_title'] = $request->name;
+                $data['meta_keywords'] = str_replace(' ', ', ', $request->name);
+            }
+
+            // Auto-generate meta description if description is present
+            if ($request->has('description')) {
+                $data['meta_description'] = Str::limit(strip_tags($request->description), 150);
+            }
+
+            $product->update($data);
 
             DB::commit();
             return $this->success($this->formatProduct($product->refresh(), true), 'Product updated successfully.');
@@ -307,6 +330,25 @@ class ProductController extends Controller
             return $this->success(null, 'Product and associated data deleted successfully.');
         } catch (\Exception $e) {
             return $this->error('Failed to delete product.', 500, $e->getMessage());
+        }
+    }
+
+    /**
+     * Update the product status.
+     */
+    public function toggleStatus(Request $request, $id)
+    {
+        $product = Product::find($id);
+
+        if (!$product) {
+            return $this->error('Product not found.', 404);
+        }
+
+        try {
+            $product->update(['is_active' => !$product->is_active]);
+            return $this->success(['is_active' => (bool)$product->is_active], 'Product status updated successfully.');
+        } catch (\Exception $e) {
+            return $this->error('Failed to update product status.', 500, $e->getMessage());
         }
     }
 

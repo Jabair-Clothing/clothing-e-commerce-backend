@@ -10,5 +10,6 @@ Route::middleware('auth:api', 'role:admin,stuff,member')->group(function () {
     Route::post('/products', [ProductController::class, 'store']);
     Route::get('/products/{id}', [ProductController::class, 'show']);
     Route::post('/products/{id}', [ProductController::class, 'update']);
+    Route::patch('/products/{id}/status', [ProductController::class, 'toggleStatus']);
     Route::delete('/products/{id}', [ProductController::class, 'destroy']);
 });
