@@ -10,7 +10,7 @@ use App\Models\Coupon_Product;
 use Illuminate\Validation\Rule;
 use App\Models\Order;
 use Illuminate\Support\Carbon;
-use App\Models\Item;
+use App\Models\Product;
 use Illuminate\Support\Facades\DB;
 use App\Helpers\ActivityHelper;
 
@@ -30,7 +30,8 @@ class CouponController extends Controller
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'item_ids' => 'sometimes|array',
-            'item_ids.*' => 'exists:items,id',
+            'item_ids.*' => 'exists:products,id',
+            'status' => 'nullable|integer',
         ]);
 
         try {
@@ -299,7 +300,7 @@ class CouponController extends Controller
     {
         $request->validate([
             'item_ids' => 'required|array',
-            'item_ids.*' => 'exists:items,id',
+            'item_ids.*' => 'exists:products,id',
         ]);
 
         try {
@@ -336,7 +337,7 @@ class CouponController extends Controller
     public function removeItem(Request $request, $id)
     {
         $request->validate([
-            'item_id' => 'required|exists:items,id',
+            'item_id' => 'required|exists:products,id',
         ]);
 
         try {
@@ -390,7 +391,7 @@ class CouponController extends Controller
                 throw new \Exception('Invalid coupon code.', 404);
             }
 
-            if ($coupon->status != 0) {
+            if ($coupon->status != 1) { // Changed to 1 assuming 1 is active
                 throw new \Exception('This coupon is not active.', 400);
             }
 
@@ -404,11 +405,11 @@ class CouponController extends Controller
 
             // Usage checks
             $totalUsage = Order::where('coupons_id', $coupon->id)->count();
-            if ($totalUsage >= $coupon->max_usage) {
+            if ($coupon->max_usage && $totalUsage >= $coupon->max_usage) {
                 throw new \Exception('Coupon has reached maximum usage limit.', 400);
             }
 
-            if ($request->user_id) {
+            if ($request->user_id && $coupon->max_usage_per_user) {
                 $userUsage = Order::where('coupons_id', $coupon->id)
                     ->where('user_id', $request->user_id)
                     ->count();
@@ -425,19 +426,19 @@ class CouponController extends Controller
                 $couponProductIds = $coupon->items->pluck('id')->toArray();
                 $cartProducts = collect($request->products ?? []);
                 $productIdsInCart = $cartProducts->pluck('product_id');
-                $itemsInCart = Item::whereIn('id', $productIdsInCart)->get()->keyBy('id');
+                $itemsInCart = Product::whereIn('id', $productIdsInCart)->get()->keyBy('id');
 
                 foreach ($cartProducts as $cartProduct) {
                     if (in_array($cartProduct['product_id'], $couponProductIds)) {
                         $item = $itemsInCart->get($cartProduct['product_id']);
                         if ($item) {
-                            $eligibleAmount += $item->price * $cartProduct['quantity'];
+                            $eligibleAmount += $item->base_price * $cartProduct['quantity'];
                         }
                     }
                 }
             }
 
-            if ($eligibleAmount < $coupon->min_pur) {
+            if ($coupon->min_pur && $eligibleAmount < $coupon->min_pur) {
                 throw new \Exception("Minimum purchase of {$coupon->min_pur} is required for this coupon.", 400);
             }
 
@@ -460,15 +461,20 @@ class CouponController extends Controller
                 ]
             ]);
         } catch (\Exception $e) {
+            $status = $e->getCode();
+            if (!is_int($status) || $status < 100 || $status > 599) {
+                $status = 400; // Default to 400 Bad Request for robustness
+            }
+
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
                 'data' => [
-                    'coupon_id'   => $coupon->id,
+                    'coupon_id'   => isset($coupon) ? $coupon->id : null,
                     'discount' => 0,
                     'final_total' => $request->total_amount ?? 0
                 ]
-            ], $e->getCode() ?: 400);
+            ], $status);
         }
     }
 }

@@ -55,7 +55,7 @@ class Product extends Model
 
     public function coupons()
     {
-        return $this->belongsToMany(Coupon::class, 'coupon__products', 'product_id', 'coupon_id');
+        return $this->belongsToMany(Coupon::class, 'coupon__products', 'item_id', 'coupon_id');
     }
 
     public function ratings()
