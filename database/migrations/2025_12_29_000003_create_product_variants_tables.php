@@ -34,6 +34,8 @@ return new class extends Migration
             $table->foreignId('product_sku_id')->constrained('product_skus')->onDelete('cascade');
             $table->foreignId('attribute_id')->constrained('attributes')->onDelete('cascade');
             $table->foreignId('attribute_value_id')->constrained('attribute_values')->onDelete('cascade');
+            $table->integer('product_image_id')->nullable();
+            $table->timestamps();
 
             // Helps duplicate checks (e.g. Ensure you don't have two variants for Red-XL)
             $table->unique(['product_sku_id', 'attribute_id', 'attribute_value_id'], 'sku_attr_unique');
