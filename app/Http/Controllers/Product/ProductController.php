@@ -245,6 +245,7 @@ class ProductController extends Controller
             'short_description' => 'nullable|string',
             'is_active' => 'boolean',
             'base_price' => 'nullable|numeric|min:0',
+            'quantity' => 'nullable|integer|min:0',
             'parent_category_id' => 'nullable|exists:parent_categories,id',
             'category_id' => 'nullable|exists:categories,id',
         ]);
@@ -262,6 +263,7 @@ class ProductController extends Controller
                 'short_description',
                 'is_active',
                 'base_price',
+                'quantity',
                 'parent_category_id',
                 'category_id'
             ]);
@@ -279,6 +281,15 @@ class ProductController extends Controller
             }
 
             $product->update($data);
+
+            // Update quantity for simple products (single SKU)
+            if ($request->has('quantity')) {
+                // Check if product has exactly one SKU or if it's considered a simple product
+                // Generally simple products have 1 SKU.
+                if ($product->skus()->count() === 1) {
+                    $product->skus()->first()->update(['quantity' => $request->quantity]);
+                }
+            }
 
             DB::commit();
             return $this->success($this->formatProduct($product->refresh(), true), 'Product updated successfully.');
