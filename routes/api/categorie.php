@@ -10,7 +10,7 @@ Route::middleware('auth:api', 'role:admin,stuff,member')->group(function () {
         Route::post('/', [CategoryController::class, 'storeParent']);
         Route::get('/', [CategoryController::class, 'indexParents']);
         Route::get('/{id}', [CategoryController::class, 'showParent']);
-        Route::put('/{id}', [CategoryController::class, 'updateParent']);
+        Route::post('/{id}', [CategoryController::class, 'updateParent']);
         Route::delete('/{id}', [CategoryController::class, 'destroyParent']);
     });
 
@@ -19,7 +19,7 @@ Route::middleware('auth:api', 'role:admin,stuff,member')->group(function () {
         Route::post('/', [CategoryController::class, 'storeSubCategory']);
         Route::get('/', [CategoryController::class, 'indexSubCategories']);
         Route::get('/{id}', [CategoryController::class, 'showSubCategory']);
-        Route::put('/{id}', [CategoryController::class, 'updateSubCategory']);
+        Route::post('/{id}', [CategoryController::class, 'updateSubCategory']);
         Route::delete('/{id}', [CategoryController::class, 'destroySubCategory']);
     });
 });
