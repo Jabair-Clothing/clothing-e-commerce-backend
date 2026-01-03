@@ -13,10 +13,10 @@ return new class extends Migration
     {
         Schema::create('order_infos', function (Blueprint $table) {
             $table->id();
-            $table->string('inside_dhaka');
-            $table->string('outside_dhaka');
-            $table->string('vat');
-            $table->string('bkash_changed');
+            $table->integer('inside_dhaka');
+            $table->integer('outside_dhaka');
+            $table->decimal('vat', 10, 2);
+            $table->decimal('bkash_changed', 10, 2);
             $table->timestamps();
         });
     }

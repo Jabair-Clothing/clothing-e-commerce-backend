@@ -55,8 +55,8 @@ class OrderInfoController extends Controller
             $validator = Validator::make($request->all(), [
                 'inside_dhaka' => 'nullable|numeric',
                 'outside_dhaka' => 'nullable|numeric',
-                'vat' => 'nullable|numeric',
-                'bkash_changed' => 'nullable|string',
+                'vat' => 'nullable|decimal:0,2',
+                'bkash_changed' => 'nullable|decimal:0,2',
             ]);
 
             if ($validator->fails()) {
