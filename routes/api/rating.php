@@ -10,6 +10,7 @@ Route::middleware('auth:api', 'role:admin,stuff,member')->group(function () {
         Route::post('/', [RatingController::class, 'store']);
         Route::get('/', [RatingController::class, 'index']);
         Route::patch('/toggle-status/{rating_id}', [RatingController::class, 'toggleStatus']);
+        Route::delete('/{id}', [RatingController::class, 'destroy']);
     });
 });
 

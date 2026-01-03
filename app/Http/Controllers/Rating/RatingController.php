@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Reating;
 use Illuminate\Support\Facades\Storage;
-use App\Models\Order;
+
 
 class RatingController extends Controller
 {
@@ -19,7 +19,7 @@ class RatingController extends Controller
             $validator = Validator::make($request->all(), [
                 'star' => 'required|integer|between:1,5',
                 'rating' => 'nullable|string|max:255',
-                'product_id' => 'required|exists:items,id',
+                'product_id' => 'required|exists:products,id',
             ]);
 
             // If validation fails, return error response
@@ -38,7 +38,7 @@ class RatingController extends Controller
                 'User_id' => $request->user()->id,
                 'status' => 0,
                 'star' => $request->star,
-                'rating' => $request->reating,
+                'rating' => $request->rating,
                 'product_id' => $request->product_id,
             ]);
 
@@ -61,7 +61,6 @@ class RatingController extends Controller
             ], 500);
         }
     }
-
     // shwo all rating
     public function index(Request $request)
     {
@@ -107,14 +106,22 @@ class RatingController extends Controller
 
             // Format the response data
             $formattedRatings = $ratings->map(function ($rating) {
-                $firstImage = $rating->product && $rating->product->images->isNotEmpty()
-                    ? Storage::disk('media')->url($rating->product->images->first()->path)
-                    : null;
+                // Get the first image URL or image_path
+                $firstImage = null;
+                if ($rating->product && $rating->product->images->isNotEmpty()) {
+                    $image = $rating->product->images->first();
+                    // Check if image_url exists, otherwise use image_path with storage disk
+                    if ($image->image_url) {
+                        $firstImage = $image->image_url;
+                    } elseif ($image->image_path) {
+                        $firstImage = Storage::disk('media')->url($image->image_path);
+                    }
+                }
 
                 return [
                     'id' => $rating->id,
                     'star' => $rating->star,
-                    'reating' => $rating->rating,
+                    'rating' => $rating->rating,
                     'status' => $rating->status,
                     'product' => $rating->product ? [
                         'id' => $rating->product->id,
@@ -195,6 +202,47 @@ class RatingController extends Controller
                 'success' => false,
                 'status' => 500,
                 'message' => 'An error occurred while toggling the rating status.',
+                'data' => null,
+                'errors' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    // Delete rating
+    public function destroy($id)
+    {
+        try {
+            // Find the rating by ID
+            $rating = Reating::find($id);
+
+            // Check if the rating exists
+            if (!$rating) {
+                return response()->json([
+                    'success' => false,
+                    'status' => 404,
+                    'message' => 'Rating not found.',
+                    'data' => null,
+                    'errors' => 'Invalid rating ID.',
+                ], 404);
+            }
+
+            // Delete the rating
+            $rating->delete();
+
+            // Return success response
+            return response()->json([
+                'success' => true,
+                'status' => 200,
+                'message' => 'Rating deleted successfully.',
+                'data' => null,
+                'errors' => null,
+            ], 200);
+        } catch (\Exception $e) {
+            // Handle any exceptions
+            return response()->json([
+                'success' => false,
+                'status' => 500,
+                'message' => 'An error occurred while deleting the rating.',
                 'data' => null,
                 'errors' => $e->getMessage(),
             ], 500);
