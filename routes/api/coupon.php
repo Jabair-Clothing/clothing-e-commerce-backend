@@ -12,9 +12,6 @@ Route::middleware('auth:api', 'role:admin,stuff,member')->group(function () {
         Route::patch('/toggle-status/{coupon_id}', [CouponController::class, 'toggleStatus']);
         Route::put('/{coupon_id}', [CouponController::class, 'update']);
         Route::delete('/{coupon_id}', [CouponController::class, 'destroy']);
-
-        Route::post('/add-items/{coupon_id}', [CouponController::class, 'addItems']);
-        Route::delete('/remove-items/{coupon_id}', [CouponController::class, 'removeItem']);
     });
 });
 
