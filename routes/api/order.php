@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Order\OrderController;
+use App\Http\Controllers\OrderInfo\OrderInfoController;
 
 Route::post('orders/place-order', [OrderController::class, 'placeOrder']);
 Route::middleware('auth:api')->group(function () {
@@ -25,5 +26,11 @@ Route::middleware('auth:api', 'role:admin,stuff,member')->group(function () {
         Route::put('/update-customer-info/{order_Id}', [OrderController::class, 'updateCustomerInfo']);
 
         Route::get('/summary/due-amount', [OrderController::class, 'getOrderSummary']);
+    });
+
+    // Order Info Routes
+    Route::prefix('orderinfo')->group(function () {
+        Route::get('/', [OrderInfoController::class, 'index']);
+        Route::put('/', [OrderInfoController::class, 'update']);
     });
 });
