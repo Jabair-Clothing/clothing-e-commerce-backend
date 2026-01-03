@@ -29,35 +29,33 @@ class CouponController extends Controller
             'max_usage_per_user' => 'nullable|integer|min:1',
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
-            'item_ids' => 'sometimes|array',
-            'item_ids.*' => 'exists:products,id',
+            'product_ids' => 'sometimes|array',
+            'product_ids.*' => 'exists:products,id',
             'status' => 'nullable|integer',
         ]);
 
         try {
             DB::beginTransaction();
 
-            // Create the coupon
             $coupon = Coupon::create($validated);
 
-            // Attach items if not global
-            if (!$validated['is_global'] && !empty($validated['item_ids'])) {
-                $coupon->items()->attach($validated['item_ids']);
+            // Attach products if not global
+            if (!$validated['is_global'] && !empty($validated['product_ids'])) {
+                $coupon->products()->attach($validated['product_ids']);
             }
 
             DB::commit();
 
             // Prepare activity description
-            $itemList = !$validated['is_global'] && !empty($validated['item_ids'])
-                ? implode(', ', $validated['item_ids'])
-                : 'All items (Global Coupon)';
+            $productList = !$validated['is_global'] && !empty($validated['product_ids'])
+                ? implode(', ', $validated['product_ids'])
+                : 'All products (Global Coupon)';
 
             $activityDesc = "Created Coupon: Code - {$coupon->code}, Amount - {$coupon->amount} ({$coupon->type}), ";
-            $activityDesc .= "Scope - " . ($coupon->is_global ? 'Global' : 'Specific Items') . ", Items - {$itemList}, ";
+            $activityDesc .= "Scope - " . ($coupon->is_global ? 'Global' : 'Specific Products') . ", Products - {$productList}, ";
             $activityDesc .= "Valid: " . ($coupon->start_date ?? 'N/A') . " to " . ($coupon->end_date ?? 'N/A') . ", ";
             $activityDesc .= "Date - " . now()->toDateTimeString();
 
-            // Save activity
             ActivityHelper::logActivity($coupon->id, 'Coupon', $activityDesc);
 
             return response()->json([
@@ -85,7 +83,6 @@ class CouponController extends Controller
         try {
             $coupon = Coupon::findOrFail($id);
 
-            // Validate request
             $validated = $request->validate([
                 'code' => [
                     'required',
@@ -105,18 +102,85 @@ class CouponController extends Controller
                 'max_usage_per_user' => 'nullable|integer|min:1',
                 'start_date' => 'nullable|date',
                 'end_date' => 'nullable|date|after_or_equal:start_date',
+                'product_ids' => 'sometimes|array',
+                'product_ids.*' => 'exists:products,id',
+                'status' => 'nullable|integer',
             ]);
 
-            // Update coupon
+            DB::beginTransaction();
+
+            // Store old product IDs for activity logging
+            $oldProductIds = DB::table('coupon__products')
+                ->where('coupon_id', $coupon->id)
+                ->pluck('item_id')
+                ->toArray();
+
+            // Update coupon basic data
             $coupon->update($validated);
+
+            // Handle product associations in coupon__products table
+            if ($validated['is_global']) {
+                // If coupon is now global, delete all records from coupon__products
+                DB::table('coupon__products')
+                    ->where('coupon_id', $coupon->id)
+                    ->delete();
+            } else {
+                // If coupon is not global and product_ids are provided
+                if (isset($validated['product_ids'])) {
+                    // sync() will update the coupon__products pivot table
+                    $coupon->products()->sync($validated['product_ids']);
+                }
+            }
+
+            // Get updated product IDs
+            $newProductIds = DB::table('coupon__products')
+                ->where('coupon_id', $coupon->id)
+                ->pluck('item_id')
+                ->toArray();
+
+            // Calculate changes
+            $addedProducts = array_diff($newProductIds, $oldProductIds);
+            $removedProducts = array_diff($oldProductIds, $newProductIds);
+
+            DB::commit();
+
+            // Prepare activity description
+            $productList = !$validated['is_global'] && count($newProductIds) > 0
+                ? implode(', ', $newProductIds)
+                : 'All products (Global Coupon)';
+
+            $activityDesc = "Updated Coupon: Code - {$coupon->code}, Amount - {$coupon->amount} ({$coupon->type}), ";
+            $activityDesc .= "Scope - " . ($coupon->is_global ? 'Global' : 'Specific Products') . ", Products - {$productList}, ";
+
+            if (!empty($addedProducts)) {
+                $activityDesc .= "Added Products: " . implode(', ', $addedProducts) . ", ";
+            }
+            if (!empty($removedProducts)) {
+                $activityDesc .= "Removed Products: " . implode(', ', $removedProducts) . ", ";
+            }
+
+            $activityDesc .= "Valid: " . ($coupon->start_date ?? 'N/A') . " to " . ($coupon->end_date ?? 'N/A') . ", ";
+            $activityDesc .= "Date - " . now()->toDateTimeString();
+
+            ActivityHelper::logActivity($coupon->id, 'Coupon', $activityDesc);
+
+            // Reload the relationship
+            $coupon->load('products');
 
             return response()->json([
                 'success' => true,
                 'status' => 200,
                 'message' => 'Coupon updated successfully.',
-                'data' => $coupon
+                'data' => [
+                    'coupon' => $coupon,
+                    'changes' => [
+                        'products_added' => array_values($addedProducts),
+                        'products_removed' => array_values($removedProducts),
+                    ]
+                ]
             ], 200);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'status' => 404,
@@ -124,6 +188,7 @@ class CouponController extends Controller
                 'data' => null,
             ], 404);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'status' => 500,
@@ -195,7 +260,7 @@ class CouponController extends Controller
             $currentPage = $request->input('page');
             $search = $request->input('search');
 
-            $couponsQuery = Coupon::with(['items:id,name'])
+            $couponsQuery = Coupon::with(['products:id,name']) // Changed from 'items' to 'products'
                 ->withCount(['orders as total_orders' => function ($q) {
                     $q->where('status', 1); // only completed orders
                 }])
