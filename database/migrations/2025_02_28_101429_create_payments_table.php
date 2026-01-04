@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('order_id');
             $table->string('status')->default(0);
             $table->string('amount');
-            $table->string('padi_amount');
+            $table->string('paid_amount');
             $table->string('payment_type')->nullable();
             $table->string('trxed')->nullable();
             $table->string('phone')->nullable();

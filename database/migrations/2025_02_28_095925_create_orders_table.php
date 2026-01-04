@@ -16,10 +16,11 @@ return new class extends Migration
             $table->string('invoice_code');
             $table->string('user_id')->nullable();
             $table->string('shipping_id')->nullable();
+            $table->text('order_description')->nullable();
             $table->string('status')->default(0);
-            $table->string('status_chnange_desc')->default(0);
+            $table->string('status_change_desc')->default(0);
             $table->string('item_subtotal');
-            $table->string('shipping_chaege')->nullable();
+            $table->string('shipping_charge')->nullable();
             $table->string('total_amount');
             $table->string('coupons_id')->nullable();
             $table->string('discount')->nullable();

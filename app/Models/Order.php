@@ -13,16 +13,18 @@ class Order extends Model
         'invoice_code',
         'user_id',
         'shipping_id',
+        'order_description',
         'status',
-        'status_chnange_desc',
+        'status_change_desc',
         'item_subtotal',
-        'shipping_chaege',
+        'shipping_charge',
         'total_amount',
         'coupons_id',
         'discount',
         'user_name',
         'phone',
-        'address'
+        'address',
+        'order_description',
     ];
 
     public function orderItems()
@@ -65,7 +67,7 @@ class Order extends Model
     {
         return $this->hasMany(Activity::class, 'relatable_id');
     }
-    
+
     public function orders()
     {
         return $this->hasMany(Order::class, 'coupons_id');

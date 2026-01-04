@@ -8,7 +8,6 @@ use App\Models\Order;
 use App\Models\Order_list;
 use App\Models\Product;
 use App\Models\ProductSku;
-// use App\Models\BundleItem;
 use App\Models\Payment;
 use App\Models\Coupon;
 use Illuminate\Support\Facades\DB;
@@ -61,8 +60,11 @@ class OrderController extends Controller
             // Generate invoice code
             $invoiceCode = $this->generateInvoiceCode();
 
+            // Generate order description
+            $orderDescription = $this->generateOrderDescription($request->products);
+
             //  Create the order with server-calculated values
-            $order = $this->createOrder($request, $invoiceCode, $discount, $calculatedTotal);
+            $order = $this->createOrder($request, $invoiceCode, $discount, $calculatedTotal, $orderDescription);
 
             // Save order items
             $this->saveOrderItems($order, $request->products);
@@ -74,9 +76,9 @@ class OrderController extends Controller
 
             // Dispatch the job to send emails asynchronously
             // Only send email if order has a valid user_id
-            if ($order->user_id) {
-                dispatch(new SendOrderEmailsJob($order));
-            }
+            // if ($order->user_id) {
+            //     dispatch(new SendOrderEmailsJob($order));
+            // }
 
             // Return success response
             return $this->successResponse($order, 'Order placed successfully.');
@@ -177,9 +179,10 @@ class OrderController extends Controller
      * @param string $invoiceCode
      * @param float $discount
      * @param float $totalAmount
+     * @param string $orderDescription
      * @return Order
      */
-    private function createOrder(Request $request, $invoiceCode, $discount, $totalAmount): Order
+    private function createOrder(Request $request, $invoiceCode, $discount, $totalAmount, $orderDescription): Order
     {
         return Order::create([
             'invoice_code' => $invoiceCode,
@@ -187,13 +190,14 @@ class OrderController extends Controller
             'shipping_id' => $request->shipping_id,
             'status' => '0',
             'item_subtotal' => $request->product_subtotal,
-            'shipping_chaege' => $request->shipping_charge, // Your original code used 'chaege'
+            'shipping_charge' => $request->shipping_charge,
             'total_amount' => $totalAmount,
             'coupons_id' => $request->coupon_id, // Store the coupon id
             'discount' => $discount, // Store the calculated discount
             'user_name' => $request->user_name,
             'phone' => $request->userphone,
             'address' => $request->address,
+            'order_description' => $orderDescription,
         ]);
     }
 
@@ -211,7 +215,7 @@ class OrderController extends Controller
             'order_id' => $order->id,
             'status' => $paymentStatus,
             'amount' => $totalAmount,
-            'padi_amount' => 0, // Assuming this is 'paid_amount'
+            'paid_amount' => 0,
             'payment_type' => $request->payment_type,
             'trxed' => $request->trxed,
             'phone' => $request->paymentphone
@@ -231,7 +235,7 @@ class OrderController extends Controller
             'total' => 'required|numeric|min:0',
             'paymentphone' => 'nullable|string|max:20',
             'products' => 'required|array',
-            'products.*.product_id' => 'required|exists:items,id',
+            'products.*.product_id' => 'required|exists:products,id',
             'products.*.quantity' => 'required|integer|min:1',
             'payment_type' => 'required|integer|in:1,2,3',
             'trxed' => 'nullable|string|max:255',
@@ -248,11 +252,6 @@ class OrderController extends Controller
     {
         foreach ($products as $product) {
             $item = Product::with('skus')->find($product['product_id']);
-            // Check availability - Assumes simple product or default variant
-            // For now, checking aggregate quantity or default variant?
-            // Existing logic: $item->quantity
-            // New logic: Check skus.
-            // Simplified: Update the first sku found.
 
             $sku = $item->skus->first();
 
@@ -263,6 +262,34 @@ class OrderController extends Controller
             $sku->quantity -= $product['quantity'];
             $sku->save();
         }
+    }
+
+    // Generate Order Description
+    private function generateOrderDescription($products)
+    {
+        $descriptionParts = [];
+
+        foreach ($products as $product) {
+            $item = Product::with(['skus.attributes.attribute', 'skus.attributes.attributeValue'])->find($product['product_id']);
+
+            if (!$item) continue;
+
+            $sku = $item->skus->first(); // Assuming first SKU is selected for now as per previous logic
+
+            $attributesString = '';
+            if ($sku && $sku->attributes->isNotEmpty()) {
+                $attrs = $sku->attributes->map(function ($skuAttr) {
+                    $attrName = $skuAttr->attribute->name ?? '';
+                    $attrVal = $skuAttr->attributeValue->name ?? '';
+                    return "{$attrName}: {$attrVal}";
+                })->implode(', ');
+                $attributesString = " ({$attrs})";
+            }
+
+            $descriptionParts[] = "{$item->name}{$attributesString} x {$product['quantity']}";
+        }
+
+        return implode('; ', $descriptionParts);
     }
 
     // Generate invoice code
@@ -285,7 +312,6 @@ class OrderController extends Controller
             Order_list::create([
                 'order_id' => $order->id,
                 'product_id' => $product['product_id'],
-                'Bundle_product_id' => null,
                 'quantity' => $product['quantity'],
                 'price' => $item->base_price,
             ]);
@@ -296,43 +322,6 @@ class OrderController extends Controller
             // }
         }
     }
-
-    // Handle bundle products (Slightly optimized to avoid refetching item)
-    private function handleBundleProducts($order, $productData, $item)
-    {
-        // $bundleItems = BundleItem::where('bundle_item_id', $item->id)->get();
-
-        // foreach ($bundleItems as $bundleItem) {
-        //     $bundleProduct = Product::with('skus')->find($bundleItem->item_id);
-        //     if ($bundleProduct) {
-        //         $quantityToReduce = $bundleItem->bundle_quantity * $productData['quantity'];
-
-        //         $sku = $bundleProduct->skus->first();
-        //         if ($sku) {
-        //             // Check stock?
-        //             $sku->quantity -= $quantityToReduce;
-        //             $sku->save();
-        //         }
-        //     }
-        // }
-    }
-    // private function handleBundleProducts($order, $productData, $item)
-    // {
-    //     // Fetch all bundle items related to the bundle product
-    //     $bundleItems = BundleItem::where('bundle_item_id', $item->id)->get();
-
-    //     foreach ($bundleItems as $bundleItem) {
-    //         $bundleProduct = Item::find($bundleItem->item_id);
-    //         if ($bundleProduct) {
-    //             $quantityToReduce = $bundleItem->bundle_quantity * $productData['quantity'];
-    //             if ($bundleProduct->quantity < $quantityToReduce) {
-    //                 throw new \Exception('Insufficient stock for bundled item: ' . $bundleProduct->name, 409);
-    //             }
-    //             $bundleProduct->quantity -= $quantityToReduce;
-    //             $bundleProduct->save();
-    //         }
-    //     }
-    // }
 
 
     // Return validation error response
@@ -438,7 +427,7 @@ class OrderController extends Controller
             $formattedOrders = $orders->map(function ($order) {
                 $payment = $order->payment; // Assume one-to-one relationship (adjust if multiple payments)
 
-                $paidAmount = $payment?->padi_amount ?? 0;
+                $paidAmount = $payment?->paid_amount ?? 0;
                 $totalAmount = $payment?->amount ?? $order->total_amount ?? 0;
                 $dueAmount = $totalAmount - $paidAmount;
 
@@ -612,9 +601,9 @@ class OrderController extends Controller
                 'user',
                 'shippingAddress',
                 'coupon',
+                'coupon',
                 'orderItems.item.images',
                 'payments',
-                'orderItems.item.bundleItems.bundleItem.images'
             ])->find($orderId);
 
             if (!$order) {
@@ -658,11 +647,12 @@ class OrderController extends Controller
                 'address' => $order->address ?? null,
                 'invoice_code' => $order->invoice_code,
                 'status' => $order->status,
-                'status_change_desc' => $order->status_chnange_desc,
+                'status_change_desc' => $order->status_change_desc,
                 'item_subtotal' => $order->item_subtotal,
-                'shipping_charge' => $order->shipping_chaege,
+                'shipping_charge' => $order->shipping_charge,
                 'total_amount' => $order->total_amount,
                 'discount' => $order->discount,
+                'order_description' => $order->order_description,
                 'created_at' => $order->created_at->format('Y-m-d H:i:s'),
             ],
             'user' => $order->user ? [
@@ -687,15 +677,6 @@ class OrderController extends Controller
             ] : null,
             'order_items' => $order->orderItems->map(function ($orderItem) {
                 $item = $orderItem->item;
-                $bundleItems = $item->is_bundle
-                    ? $item->relatedBundleItems->map(function ($bundleItem) use ($item) {
-                        return [
-                            'item_id'         => $bundleItem->id,
-                            'name'            => $bundleItem->name,
-                            'slug'            => $bundleItem->slug,
-                        ];
-                    })
-                    : null;
 
                 return [
                     'product_id' => $item->id,
@@ -703,8 +684,6 @@ class OrderController extends Controller
                     'slug' => $item->slug,
                     'quantity' => $orderItem->quantity,
                     'price' => $orderItem->price,
-                    'is_bundle' => $item->is_bundle,
-                    'bundle_items' => $bundleItems,
                     'image' => $item->images->first()
                         ? FileUploadService::getUrl($item->images->first()->path)
                         : null,
@@ -716,11 +695,11 @@ class OrderController extends Controller
                     'payment_id' => $payment->id,
                     'status' => $payment->status,
                     'amount' => $payment->amount,
-                    'paid_amount' => $payment->padi_amount,
+                    'paid_amount' => $payment->paid_amount,
                     'payment_type' => $payment->payment_type,
                     'transaction_id' => $payment->trxed,
                     'phone' => $payment->phone,
-                    'due_amount' => $payment->amount - $payment->padi_amount,
+                    'due_amount' => $payment->amount - $payment->paid_amount,
                 ];
             }),
         ];
@@ -758,7 +737,7 @@ class OrderController extends Controller
             // Update the order status and status change description
             $order->update([
                 'status' => $newStatus,
-                'status_chnange_desc' => $statusChangeDesc,
+                'status_change_desc' => $statusChangeDesc,
             ]);
 
             // Save activity
@@ -772,7 +751,7 @@ class OrderController extends Controller
                 'data' => [
                     'order_id' => $order->id,
                     'new_status' => $order->status,
-                    'status_change_desc' => $order->status_chnange_desc,
+                    'status_change_desc' => $order->status_change_desc,
                 ],
                 'errors' => null,
             ], 200);

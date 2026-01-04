@@ -13,7 +13,6 @@ class Order_list extends Model
         'product_id',
         'quantity',
         'price',
-        'is_bundle',
     ];
 
     // Relationship with Item

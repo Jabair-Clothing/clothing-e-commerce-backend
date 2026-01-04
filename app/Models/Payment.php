@@ -12,7 +12,7 @@ class Payment extends Model
         'order_id',
         'status',
         'amount',
-        'padi_amount',
+        'paid_amount',
         'payment_type',
         'trxed',
         'phone'
