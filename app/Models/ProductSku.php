@@ -30,6 +30,16 @@ class ProductSku extends Model
 
     public function skuAttributes()
     {
-        return $this->hasMany(ProductSkuAttribute::class);
+        return $this->hasMany(ProductSkuAttribute::class, 'product_sku_id');
+    }
+
+    public function attributeValues()
+    {
+        return $this->belongsToMany(
+            AttributeValue::class,
+            'product_sku_attributes',
+            'product_sku_id',
+            'attribute_value_id'
+        )->withPivot(['attribute_id', 'product_image_id']);
     }
 }

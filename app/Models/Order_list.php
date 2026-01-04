@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class Order_list extends Model
 {
     use HasFactory;
+
     protected $fillable = [
         'order_id',
         'product_id',
@@ -16,9 +17,13 @@ class Order_list extends Model
         'price',
     ];
 
-    // Relationship with Item
     public function item()
     {
         return $this->belongsTo(Product::class, 'product_id');
+    }
+
+    public function productSku()
+    {
+        return $this->belongsTo(ProductSku::class, 'product_sku_id');
     }
 }

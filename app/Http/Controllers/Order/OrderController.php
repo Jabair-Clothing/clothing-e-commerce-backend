@@ -251,13 +251,22 @@ class OrderController extends Controller
     // Update product quantities
     private function updateProductQuantities($products)
     {
+        $skuIds = collect($products)->pluck('product_sku_id')->unique()->values();
+
+        $skus = ProductSku::whereIn('id', $skuIds)
+            ->lockForUpdate() // prevents race condition for stock
+            ->get()
+            ->keyBy('id');
+
         foreach ($products as $product) {
-            $item = Product::with('skus')->find($product['product_id']);
+            $sku = $skus->get($product['product_sku_id']);
 
-            $sku = $item->skus->first();
+            if (!$sku) {
+                throw new \Exception('SKU not found: ' . $product['product_sku_id'], 404);
+            }
 
-            if (!$sku || $sku->quantity < $product['quantity']) {
-                throw new \Exception('Insufficient quantity for product: ' . ($item->name ?? 'ID ' . $product['product_id']), 409);
+            if ($sku->quantity < $product['quantity']) {
+                throw new \Exception('Insufficient quantity for SKU: ' . $sku->sku, 409);
             }
 
             $sku->quantity -= $product['quantity'];
@@ -265,33 +274,65 @@ class OrderController extends Controller
         }
     }
 
+
     // Generate Order Description
     private function generateOrderDescription($products)
     {
         $descriptionParts = [];
 
-        foreach ($products as $productData) {
-            // Find the specific SKU with its related product and attributes
-            $sku = ProductSku::with(['product', 'skuAttributes.attribute', 'skuAttributes.attributeValue'])
-                ->find($productData['product_sku_id']);
+        $skuIds = collect($products)->pluck('product_sku_id')->unique()->values();
 
+        // Load SKU -> Product -> Category + ParentCategory + SKU Attributes
+        $skus = ProductSku::with([
+            'product.parentCategory',
+            'product.category',
+            'skuAttributes.attribute',
+            'skuAttributes.attributeValue',
+        ])->whereIn('id', $skuIds)
+            ->get()
+            ->keyBy('id');
+
+        foreach ($products as $productData) {
+            $sku = $skus->get($productData['product_sku_id']);
             if (!$sku || !$sku->product) continue;
 
-            $attributesString = '';
-            if ($sku->skuAttributes->isNotEmpty()) {
-                $attrs = $sku->skuAttributes->map(function ($skuAttr) {
-                    $attrName = $skuAttr->attribute->name ?? '';
-                    $attrVal = $skuAttr->attributeValue->name ?? '';
-                    return "{$attrName}: {$attrVal}";
-                })->implode(', ');
-                $attributesString = " ({$attrs})";
-            }
+            $product = $sku->product;
 
-            $descriptionParts[] = "{$sku->product->name}{$attributesString} x {$productData['quantity']}";
+            $parentCategoryName = $product->parentCategory?->name;
+            $categoryName       = $product->category?->name;
+
+            // attributes: "Size: XL, Color: Red"
+            $attrs = $sku->skuAttributes
+                ->map(function ($skuAttr) {
+                    $attrName = $skuAttr->attribute?->name;
+                    $attrVal  = $skuAttr->attributeValue?->name;
+
+                    if (!$attrName || !$attrVal) return null;
+                    return "{$attrName}: {$attrVal}";
+                })
+                ->filter()
+                ->values()
+                ->implode(', ');
+
+            $attrsString = $attrs ? " ({$attrs})" : "";
+
+            // category breadcrumb: "Men > Shirt"
+            $categoryPath = collect([$parentCategoryName, $categoryName])
+                ->filter()
+                ->implode(' > ');
+
+            $categoryPrefix = $categoryPath ? "{$categoryPath} | " : "";
+
+            $skuCode = $sku->sku ? " [SKU: {$sku->sku}]" : "";
+
+            $descriptionParts[] =
+                "{$categoryPrefix}{$product->name}{$skuCode}{$attrsString} x {$productData['quantity']}";
         }
 
+        // Separate items with "; "
         return implode('; ', $descriptionParts);
     }
+
 
     // Generate invoice code
     private function generateInvoiceCode()
@@ -303,27 +344,32 @@ class OrderController extends Controller
     // Save order items
     private function saveOrderItems($order, $products)
     {
-        foreach ($products as $product) {
-            $item = Product::with('skus')->find($product['product_id']);
+        $skuIds = collect($products)->pluck('product_sku_id')->unique()->values();
 
-            if (!$item) {
-                throw new \Exception('Product not found: ' . $product['product_id']);
+        $skus = ProductSku::with('product')
+            ->whereIn('id', $skuIds)
+            ->get()
+            ->keyBy('id');
+
+        foreach ($products as $product) {
+            $sku = $skus->get($product['product_sku_id']);
+
+            if (!$sku || !$sku->product) {
+                throw new \Exception('Product/SKU not found for sku_id: ' . $product['product_sku_id'], 404);
             }
+
+            $price = $sku->discount_price ?? $sku->price ?? $sku->product->base_price;
 
             Order_list::create([
                 'order_id' => $order->id,
-                'product_id' => $product['product_id'],
-                'product_sku_id' => $product['product_sku_id'],
+                'product_id' => $sku->product->id,
+                'product_sku_id' => $sku->id,
                 'quantity' => $product['quantity'],
-                'price' => $item->base_price,
+                'price' => $price,
             ]);
-
-            // Handle bundle products if any
-            // if ($item->is_bundle) {
-            //     $this->handleBundleProducts($order, $product, $item);
-            // }
         }
     }
+
 
 
     // Return validation error response
@@ -598,14 +644,18 @@ class OrderController extends Controller
     public function show($orderId)
     {
         try {
-            // Try to fetch the order
             $order = Order::with([
                 'user',
                 'shippingAddress',
                 'coupon',
-                'coupon',
-                'orderItems.item.images',
                 'payments',
+
+                // order items
+                'orderItems.item.images',
+
+                // sku + sku attributes + attribute + attributeValue
+                'orderItems.productSku.skuAttributes.attribute',
+                'orderItems.productSku.skuAttributes.attributeValue',
             ])->find($orderId);
 
             if (!$order) {
@@ -636,7 +686,6 @@ class OrderController extends Controller
         }
     }
 
-
     private function formatOrderResponse($order)
     {
         return [
@@ -655,8 +704,9 @@ class OrderController extends Controller
                 'total_amount' => $order->total_amount,
                 'discount' => $order->discount,
                 'order_description' => $order->order_description,
-                'created_at' => $order->created_at->format('Y-m-d H:i:s'),
+                'created_at' => optional($order->created_at)->format('Y-m-d H:i:s'),
             ],
+
             'user' => $order->user ? [
                 'user_id' => $order->user->id,
                 'name' => $order->user->name,
@@ -664,6 +714,7 @@ class OrderController extends Controller
                 'phone' => $order->user->phone,
                 'address' => $order->user->address,
             ] : null,
+
             'shipping_address' => $order->shippingAddress ? [
                 'shipping_id' => $order->shippingAddress->id,
                 'f_name' => $order->shippingAddress->f_name,
@@ -673,25 +724,60 @@ class OrderController extends Controller
                 'city' => $order->shippingAddress->city,
                 'zip' => $order->shippingAddress->zip,
             ] : null,
+
             'coupon' => $order->coupon ? [
                 'code' => $order->coupon->code,
                 'amount' => $order->coupon->amount,
             ] : null,
+
             'order_items' => $order->orderItems->map(function ($orderItem) {
-                $item = $orderItem->item;
+                $product = $orderItem->item;
+                $sku     = $orderItem->productSku;
+
+                // Build attributes like: Size: XL, Color: Red
+                $attributes = collect($sku?->skuAttributes ?? [])
+                    ->map(function ($skuAttr) {
+                        return [
+                            'attribute_id' => $skuAttr->attribute_id,
+                            'attribute_name' => $skuAttr->attribute?->name,
+                            'attribute_value_id' => $skuAttr->attribute_value_id,
+                            'attribute_value_name' => $skuAttr->attributeValue?->name,
+                            'attribute_value_code' => $skuAttr->attributeValue?->code, // optional
+                        ];
+                    })
+                    ->filter(fn($row) => !empty($row['attribute_name']) && !empty($row['attribute_value_name']))
+                    ->values();
+
+                // Optional grouped format: { "Size": ["XL"], "Color": ["Red"] }
+                $attributes_grouped = $attributes
+                    ->groupBy('attribute_name')
+                    ->map(fn($rows) => $rows->pluck('attribute_value_name')->unique()->values())
+                    ->toArray();
+
+                // Optional text format: "Size: XL, Color: Red"
+                $attributes_text = collect($attributes_grouped)
+                    ->map(fn($values, $attrName) => $attrName . ': ' . collect($values)->join(', '))
+                    ->values()
+                    ->join(', ');
 
                 return [
-                    'product_id' => $item->id,
-                    'name' => $item->name,
-                    'slug' => $item->slug,
+                    'product_id' => $product?->id,
+                    'name' => $product?->name,
+                    'slug' => $product?->slug,
+                    'product_sku_id' => $orderItem->product_sku_id,
                     'quantity' => $orderItem->quantity,
                     'price' => $orderItem->price,
-                    'image' => $item->images->first()
-                        ? FileUploadService::getUrl($item->images->first()->path)
-                        : null,
 
+                    // product first image (your existing)
+                    'image' => $product?->images?->first(),
+
+                    //  attributes included
+                    'attributes' => $attributes,
+                    'attributes_grouped' => $attributes_grouped,
+                    'attributes_text' => $attributes_text,
                 ];
-            }),
+            })->values(),
+
             'payments' => $order->payments->map(function ($payment) {
                 return [
                     'payment_id' => $payment->id,
@@ -701,11 +787,12 @@ class OrderController extends Controller
                     'payment_type' => $payment->payment_type,
                     'transaction_id' => $payment->trxed,
                     'phone' => $payment->phone,
-                    'due_amount' => $payment->amount - $payment->paid_amount,
+                    'due_amount' => (float)$payment->amount - (float)$payment->paid_amount,
                 ];
-            }),
+            })->values(),
         ];
     }
+
 
     // update order status
     public function updateStatus(Request $request, $orderId)
@@ -1200,14 +1287,22 @@ class OrderController extends Controller
         try {
             $userId = Auth::id();
 
-            // Fetch order by invoice_code for logged-in user
             $order = Order::with([
                 'shippingAddress',
                 'coupon',
-                'orderItems.item.images',
-                'orderItems.item.bundleItems.bundleItem.images',
                 'payments',
-            ])->where('invoice_code', $invoiceCode)
+
+                // order items
+                'orderItems.item.parentCategory',
+                'orderItems.item.category',
+                'orderItems.item.primaryImage',
+                'orderItems.item.images',
+
+                // sku + attributes
+                'orderItems.productSku.skuAttributes.attribute',
+                'orderItems.productSku.skuAttributes.attributeValue',
+            ])
+                ->where('invoice_code', $invoiceCode)
                 ->where('user_id', $userId)
                 ->first();
 
@@ -1236,19 +1331,21 @@ class OrderController extends Controller
         }
     }
 
+
     private function formatUserOrderResponse($order)
     {
         return [
-            'order_id'       => $order->id,
-            'user_id'        => $order->user_id,
-            'shipping_id'    => $order->shipping_id,
-            'invoice_code'   => $order->invoice_code,
-            'status'         => $order->status,
-            'item_subtotal'  => $order->item_subtotal,
-            'shipping_charge' => $order->shipping_chaege,
-            'total_amount'   => $order->total_amount,
-            'discount'       => $order->discount,
-            'created_at'     => $order->created_at->format('Y-m-d H:i:s'),
+            'order_id'        => $order->id,
+            'user_id'         => $order->user_id,
+            'shipping_id'     => $order->shipping_id,
+            'invoice_code'    => $order->invoice_code,
+            'status'          => $order->status,
+            'item_subtotal'   => $order->item_subtotal,
+            'shipping_charge' => $order->shipping_charge,
+            'total_amount'    => $order->total_amount,
+            'discount'        => $order->discount,
+            'created_at'      => optional($order->created_at)->format('Y-m-d H:i:s'),
+
             'shipping_address' => $order->shippingAddress ? [
                 'shipping_id' => $order->shippingAddress->id,
                 'f_name'      => $order->shippingAddress->f_name,
@@ -1258,47 +1355,76 @@ class OrderController extends Controller
                 'city'        => $order->shippingAddress->city,
                 'zip'         => $order->shippingAddress->zip,
             ] : null,
+
             'coupon' => $order->coupon ? [
                 'code'   => $order->coupon->code,
                 'amount' => $order->coupon->amount,
             ] : null,
+
             'order_items' => $order->orderItems->map(function ($orderItem) {
-                $item = $orderItem->item;
-                $bundleItems = $item->is_bundle
-                    ? $item->relatedBundleItems->map(function ($bundleItem) use ($item) {
+                $product = $orderItem->item;
+                $sku     = $orderItem->productSku;
+
+                // attributes: Size: XL, Color: Red
+                $attributes = collect($sku?->skuAttributes ?? [])
+                    ->map(function ($skuAttr) {
                         return [
-                            'item_id'         => $bundleItem->id,
-                            'name'            => $bundleItem->name,
-                            'slug'            => $bundleItem->slug,
-                            'image'           => $bundleItem->images->first()
-                                ? FileUploadService::getUrl($bundleItem->images->first()->path)
-                                : null,
+                            'attribute_name' => $skuAttr->attribute?->name,
+                            'attribute_value' => $skuAttr->attributeValue?->name,
                         ];
                     })
-                    : null;
+                    ->filter(fn($a) => $a['attribute_name'] && $a['attribute_value'])
+                    ->values();
+
+                // grouped attributes
+                $attributes_grouped = $attributes
+                    ->groupBy('attribute_name')
+                    ->map(fn($rows) => $rows->pluck('attribute_value')->unique()->values())
+                    ->toArray();
+
+                // attributes text
+                $attributes_text = collect($attributes_grouped)
+                    ->map(fn($values, $name) => "{$name}: " . collect($values)->join(', '))
+                    ->values()
+                    ->join(', ');
+
+                // image priority: primary > first image
+                $image = $product?->primaryImage?->image_url
+                    ?? $product?->images?->first()?->image_url;
+
                 return [
-                    'product_id'   => $item->id,
-                    'name'         => $item->name,
-                    'slug'         => $item->slug,
+                    'product_id'   => $product?->id,
+                    'product_name' => $product?->name,
+                    'slug'         => $product?->slug,
+
+                    'parent_category' => $product?->parentCategory?->name,
+                    'category'        => $product?->category?->name,
+
+                    'product_sku_id' => $sku?->id,
+                    'product_sku'    => $sku?->sku,
+
                     'quantity'     => $orderItem->quantity,
                     'price'        => $orderItem->price,
-                    'is_bundle'    => $item->is_bundle,
-                    'bundle_items' => $bundleItems,
-                    'image' => $item->images->first()
-                        ? FileUploadService::getUrl($item->images->first()->path)
-                        : null,
+
+                    // attributes
+                    'attributes'        => $attributes,
+                    'attributes_grouped' => $attributes_grouped,
+                    'attributes_text'   => $attributes_text,
+
+                    'image' => $image,
                 ];
-            }),
+            })->values(),
+
             'payments' => $order->payments->map(function ($payment) {
                 return [
-                    'status'        => $payment->status,
-                    'amount'        => $payment->amount,
-                    'paid_amount'   => $payment->padi_amount,
-                    'payment_type'  => $payment->payment_type,
-                    'phone'         => $payment->phone,
-                    'due_amount'    => $payment->amount - $payment->padi_amount,
+                    'status'       => $payment->status,
+                    'amount'       => $payment->amount,
+                    'paid_amount'  => $payment->paid_amount, 
+                    'payment_type' => $payment->payment_type,
+                    'phone'        => $payment->phone,
+                    'due_amount'   => (float)$payment->amount - (float)$payment->paid_amount,
                 ];
-            }),
+            })->values(),
         ];
     }
 }
