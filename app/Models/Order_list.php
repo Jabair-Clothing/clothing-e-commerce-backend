@@ -11,6 +11,7 @@ class Order_list extends Model
     protected $fillable = [
         'order_id',
         'product_id',
+        'product_sku_id',
         'quantity',
         'price',
     ];

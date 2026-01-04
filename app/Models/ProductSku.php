@@ -28,7 +28,7 @@ class ProductSku extends Model
         return $this->belongsTo(ProductImage::class, 'product_image_id');
     }
 
-    public function attributes()
+    public function skuAttributes()
     {
         return $this->hasMany(ProductSkuAttribute::class);
     }

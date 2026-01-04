@@ -100,7 +100,7 @@ class OrderController extends Controller
      */
     private function applyAndValidateCoupon(Request $request): float
     {
-        $coupon = Coupon::with('items')->find($request->coupon_id);
+        $coupon = Coupon::with('products')->find($request->coupon_id);
 
         // Basic Checks
         if (!$coupon) {
@@ -138,7 +138,7 @@ class OrderController extends Controller
         if ($coupon->is_global) {
             $eligibleAmount = $request->product_subtotal;
         } else {
-            $couponProductIds = $coupon->items->pluck('id')->toArray();
+            $couponProductIds = $coupon->products->pluck('id')->toArray();
             $cartProducts = collect($request->products);
             $productIdsInCart = $cartProducts->pluck('product_id');
 
@@ -237,6 +237,7 @@ class OrderController extends Controller
             'products' => 'required|array',
             'products.*.product_id' => 'required|exists:products,id',
             'products.*.quantity' => 'required|integer|min:1',
+            'products.*.product_sku_id' => 'required|exists:product_skus,id',
             'payment_type' => 'required|integer|in:1,2,3',
             'trxed' => 'nullable|string|max:255',
 
@@ -269,16 +270,16 @@ class OrderController extends Controller
     {
         $descriptionParts = [];
 
-        foreach ($products as $product) {
-            $item = Product::with(['skus.attributes.attribute', 'skus.attributes.attributeValue'])->find($product['product_id']);
+        foreach ($products as $productData) {
+            // Find the specific SKU with its related product and attributes
+            $sku = ProductSku::with(['product', 'skuAttributes.attribute', 'skuAttributes.attributeValue'])
+                ->find($productData['product_sku_id']);
 
-            if (!$item) continue;
-
-            $sku = $item->skus->first(); // Assuming first SKU is selected for now as per previous logic
+            if (!$sku || !$sku->product) continue;
 
             $attributesString = '';
-            if ($sku && $sku->attributes->isNotEmpty()) {
-                $attrs = $sku->attributes->map(function ($skuAttr) {
+            if ($sku->skuAttributes->isNotEmpty()) {
+                $attrs = $sku->skuAttributes->map(function ($skuAttr) {
                     $attrName = $skuAttr->attribute->name ?? '';
                     $attrVal = $skuAttr->attributeValue->name ?? '';
                     return "{$attrName}: {$attrVal}";
@@ -286,7 +287,7 @@ class OrderController extends Controller
                 $attributesString = " ({$attrs})";
             }
 
-            $descriptionParts[] = "{$item->name}{$attributesString} x {$product['quantity']}";
+            $descriptionParts[] = "{$sku->product->name}{$attributesString} x {$productData['quantity']}";
         }
 
         return implode('; ', $descriptionParts);
@@ -312,6 +313,7 @@ class OrderController extends Controller
             Order_list::create([
                 'order_id' => $order->id,
                 'product_id' => $product['product_id'],
+                'product_sku_id' => $product['product_sku_id'],
                 'quantity' => $product['quantity'],
                 'price' => $item->base_price,
             ]);

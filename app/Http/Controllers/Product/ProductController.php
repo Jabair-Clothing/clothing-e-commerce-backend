@@ -216,7 +216,7 @@ class ProductController extends Controller
     public function show($id)
     {
         try {
-            $product = Product::with(['images', 'skus.productImage', 'skus.attributes.attribute', 'skus.attributes.attributeValue', 'category', 'parentCategory'])->find($id);
+            $product = Product::with(['images', 'skus.productImage', 'skus.skuAttributes.attribute', 'skus.skuAttributes.attributeValue', 'category', 'parentCategory'])->find($id);
 
             if (!$product) {
                 return $this->error('Product not found.', 404);
@@ -334,7 +334,7 @@ class ProductController extends Controller
                     Storage::disk('public')->delete($sku->image_path);
                 }
 
-                $sku->attributes()->delete(); // Clear pivot
+                $sku->skuAttributes()->delete(); // Clear pivot
                 $sku->delete();
             }
 
@@ -401,7 +401,7 @@ class ProductController extends Controller
             $data['skus'] = $product->skus->map(function ($sku) {
                 // Find first attribute with an image to use as "SKU Image" for main display
                 $skuImage = null;
-                foreach ($sku->attributes as $attr) {
+                foreach ($sku->skuAttributes as $attr) {
                     if ($attr->productImage) {
                         $skuImage = $attr->productImage->image_url;
                         break;
@@ -414,7 +414,7 @@ class ProductController extends Controller
                     'price' => $sku->price,
                     'quantity' => $sku->quantity,
                     'image' => $skuImage, // Fallback to attribute image
-                    'attributes' => $sku->attributes->map(function ($skuAttr) {
+                    'attributes' => $sku->skuAttributes->map(function ($skuAttr) {
                         return [
                             'attribute_id' => $skuAttr->attribute_id,
                             'attribute_name' => $skuAttr->attribute->name ?? null,
@@ -650,7 +650,7 @@ class ProductController extends Controller
                     }
                 }
 
-                $createdSkus[] = $sku->load('attributes.attribute', 'attributes.attributeValue', 'attributes.productImage');
+                $createdSkus[] = $sku->load('skuAttributes.attribute', 'skuAttributes.attributeValue', 'skuAttributes.productImage');
             }
 
             DB::commit();
@@ -692,7 +692,7 @@ class ProductController extends Controller
                 // Delete SKU and its attributes
                 $sku = ProductSku::where('product_id', $product->id)->where('id', $request->sku_id)->first();
                 if ($sku) {
-                    $sku->attributes()->delete(); // Delete linked attributes first
+                    $sku->skuAttributes()->delete(); // Delete linked attributes first
                     $sku->delete();
                     DB::commit();
                     return $this->success(null, 'SKU and its attributes deleted successfully.');
@@ -767,7 +767,7 @@ class ProductController extends Controller
      */
     public function getSkuAttributes($id)
     {
-        $product = Product::with(['skus.attributes.attribute', 'skus.attributes.attributeValue', 'skus.attributes.productImage'])->find($id);
+        $product = Product::with(['skus.skuAttributes.attribute', 'skus.skuAttributes.attributeValue', 'skus.skuAttributes.productImage'])->find($id);
 
         if (!$product) {
             return $this->error('Product not found.', 404);
@@ -777,7 +777,7 @@ class ProductController extends Controller
             return [
                 'sku_id' => $sku->id,
                 'sku_code' => $sku->sku,
-                'attributes' => $sku->attributes->map(function ($skuAttr) {
+                'attributes' => $sku->skuAttributes->map(function ($skuAttr) {
                     return [
                         'sku_attribute_id' => $skuAttr->id,
                         'attribute_name' => $skuAttr->attribute->name ?? null,
