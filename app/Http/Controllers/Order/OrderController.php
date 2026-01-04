@@ -1419,7 +1419,7 @@ class OrderController extends Controller
                 return [
                     'status'       => $payment->status,
                     'amount'       => $payment->amount,
-                    'paid_amount'  => $payment->paid_amount, 
+                    'paid_amount'  => $payment->paid_amount,
                     'payment_type' => $payment->payment_type,
                     'phone'        => $payment->phone,
                     'due_amount'   => (float)$payment->amount - (float)$payment->paid_amount,
