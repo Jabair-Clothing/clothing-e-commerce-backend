@@ -130,7 +130,7 @@ class PaymentController extends Controller
         try {
             // Validate the request
             $request->validate([
-                'padi_amount' => 'required|numeric|min:0',
+                'paid_amount' => 'required|numeric|min:0',
             ]);
 
             // Find the payment
@@ -145,26 +145,26 @@ class PaymentController extends Controller
                 ], 404);
             }
 
-            // Ensure padi_amount is not greater than amount
-            if ($request->input('padi_amount') > $payment->amount) {
+            // Ensure paid_amount is not greater than amount
+            if ($request->input('paid_amount') > $payment->amount) {
                 return response()->json([
                     'success' => false,
                     'status' => 400,
-                    'message' => 'padi_amount cannot be greater than the total amount.',
+                    'message' => 'paid_amount cannot be greater than the total amount.',
                     'data' => null,
-                    'errors' => 'padi_amount exceeds the total amount.',
+                    'errors' => 'paid_amount exceeds the total amount.',
                 ], 400);
             }
 
-            // Update the padi_amount
-            $payment->padi_amount = $request->input('padi_amount');
+            // Update the paid_amount
+            $payment->paid_amount = $request->input('paid_amount');
             $payment->save();
 
             // Save activity
-            $oldPadiAmount = $payment->getOriginal('padi_amount');
-            $newPadiAmount = $request->input('padi_amount');
+            $oldPaidAmount = $payment->getOriginal('paid_amount');
+            $newPaidAmount = $request->input('paid_amount');
 
-            $activityDesc = "Updated padi_amount for Payment ID: {$paymentId}, Amount: {$oldPadiAmount} → {$newPadiAmount}, ";
+            $activityDesc = "Updated paid_amount for Payment ID: {$paymentId}, Amount: {$oldPaidAmount} → {$newPaidAmount}, ";
             $activityDesc .= "Total Payment Amount: {$payment->amount}, Updated at - " . now()->toDateTimeString();
 
             // Use helper instead of direct create
