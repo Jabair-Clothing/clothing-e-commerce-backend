@@ -21,7 +21,7 @@ class PaymentController extends Controller
         try {
             // Validate the request
             $request->validate([
-                'status' => 'required|integer|in:0,1,3,4',
+                'status' => 'required|integer|in:0,1,2,3',
             ]);
 
             // Find the payment
@@ -46,7 +46,7 @@ class PaymentController extends Controller
                 $payment->status = 0;
                 $payment->payment_type = 0;
             } else {
-                // If status is 1, 3, or 4, payment status becomes 1 and payment_type is the provided status
+                // If status is 1, 2, 3, or 4, payment status becomes 1 and payment_type is the provided status
                 $payment->status = 1;
                 $payment->payment_type = $inputStatus;
             }
@@ -75,9 +75,9 @@ class PaymentController extends Controller
             // Define readable labels for payment_type
             $paymentTypeLabels = [
                 0 => 'Unpaid',
-                1 => 'Cash on Delivery',
+                1 => 'Cash Payment',
+                2 => 'Credit Card',
                 3 => 'Online Payment',
-                4 => 'Bank Transfer',
             ];
 
             $paymentTypeLabel = $paymentTypeLabels[$payment->payment_type] ?? 'Unknown';
