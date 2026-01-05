@@ -7,9 +7,6 @@ use App\Models\Payment;
 use App\Models\Transition;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Carbon;
-use App\Models\Activity;
-use Illuminate\Support\Facades\Auth;
 use App\Helpers\ActivityHelper;
 
 class PaymentController extends Controller
