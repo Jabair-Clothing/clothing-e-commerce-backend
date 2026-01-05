@@ -10,8 +10,6 @@ use App\Models\Order;
 use App\Models\Payment;
 use App\Models\Activity;
 use App\Models\Wishlist;
-use App\Models\Expense;
-use App\Models\Coupon;
 use Illuminate\Support\Facades\Auth;
 use App\Traits\ApiResponser;
 
@@ -21,7 +19,8 @@ class UserController extends Controller
     public function index(Request $request)
     {
         $query = User::select('id', 'name', 'email', 'phone', 'address', 'type')
-            ->where('type', 'user');
+            ->where('type', 'user')
+            ->withCount('wishlists'); 
 
         // Search by name, email, or phone
         if ($search = $request->input('search')) {
@@ -44,7 +43,6 @@ class UserController extends Controller
             ], 404);
         }
 
-        // Prepare enriched user data
         $allUsersData = [];
 
         foreach ($users as $user) {
@@ -58,7 +56,9 @@ class UserController extends Controller
             })->get();
 
             $totalDueAmount = $payments->sum(function ($payment) {
-                return $payment->amount - $payment->padi_amount;
+                $amount = (float) ($payment->amount ?? 0);
+                $paid   = (float) ($payment->paid_amount ?? 0);
+                return max(0, $amount - $paid);
             });
 
             $allUsersData[] = [
@@ -67,12 +67,18 @@ class UserController extends Controller
                 'email' => $user->email,
                 'phone' => $user->phone,
                 'address' => $user->address,
+
+                // wishlist count
+                'wishlist_summary' => [
+                    'total_wishlist' => (int) ($user->wishlists_count ?? 0),
+                ],
+
                 'order_summary' => [
                     'total_orders' => $totalOrders,
-                    'total_spend' => $totalAmount,
+                    'total_spend' => (float) $totalAmount,
                 ],
                 'payment_summary' => [
-                    'due_amount' => $totalDueAmount,
+                    'due_amount' => (float) $totalDueAmount,
                 ],
             ];
         }
@@ -85,6 +91,7 @@ class UserController extends Controller
             'errors' => null,
         ], 200);
     }
+
 
 
 
