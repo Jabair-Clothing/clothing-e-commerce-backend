@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use App\Mail\VerifyEmail;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cookie;
 
 class AuthController extends Controller
@@ -634,6 +636,18 @@ class AuthController extends Controller
             'status' => 200,
             'message' => 'Email verified successfully.',
             'errors' => null,
+        ], 200);
+    }
+
+    public function destroyuser(User $user): JsonResponse
+    {
+        DB::transaction(function () use ($user) {
+            $user->delete();
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'User and all related data deleted successfully.',
         ], 200);
     }
 }

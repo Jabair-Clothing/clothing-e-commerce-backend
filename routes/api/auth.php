@@ -17,6 +17,7 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::prefix('users')->group(function () {
     Route::post('/register', [AuthController::class, 'Userregister']);
     Route::post('/login', [AuthController::class, 'Userlogin']);
+    Route::delete('/{user}', [AuthController::class, 'destroyuser']);
 });
 // Email varifications
 Route::get('/email/verify/{id}/{hash}', [EmailController::class, 'verify'])

@@ -53,10 +53,15 @@ class User extends Authenticatable implements JWTSubject
         'password' => 'hashed',
     ];
 
-    // Relationship with Challan
-    public function challans()
+    public function shippingAddresses()
     {
-        return $this->hasMany(Challan::class, 'user_id');
+
+        return $this->hasMany(ShippingAddress::class, 'User_id');
+    }
+
+    public function wishlists()
+    {
+        return $this->hasMany(Wishlist::class, 'user_id');
     }
 
     // Relationship with Order
