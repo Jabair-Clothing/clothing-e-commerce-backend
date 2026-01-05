@@ -12,14 +12,16 @@ class TransitionController extends Controller
     public function index(Request $request)
     {
         try {
-            $perPage = $request->input('limit');
+            $perPage     = $request->input('limit');
             $currentPage = $request->input('page');
 
             $startDate = $request->input('start_date'); // format: Y-m-d
-            $endDate = $request->input('end_date');     // format: Y-m-d
-            $duration = $request->input('duration');    // e.g., 'today', 'this_week', 'this_month'
+            $endDate   = $request->input('end_date');   // format: Y-m-d
+            $duration  = $request->input('duration');   // e.g., 'today', 'this_week', 'this_month'
 
-            $query = Transition::with('payment')->orderBy('created_at', 'desc');
+            // Eager load payment + nested order to get invoice_code from Order model
+            $query = Transition::with(['payment.order'])
+                ->orderBy('created_at', 'desc');
 
             // Apply duration filters
             if ($duration) {
@@ -27,9 +29,11 @@ class TransitionController extends Controller
                     case 'today':
                         $query->whereDate('created_at', now()->toDateString());
                         break;
+
                     case 'this_week':
                         $query->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()]);
                         break;
+
                     case 'this_month':
                         $query->whereBetween('created_at', [now()->startOfMonth(), now()->endOfMonth()]);
                         break;
@@ -38,7 +42,10 @@ class TransitionController extends Controller
 
             // Apply custom date range filter if provided
             if ($startDate && $endDate) {
-                $query->whereBetween('created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59']);
+                $query->whereBetween('created_at', [
+                    $startDate . ' 00:00:00',
+                    $endDate . ' 23:59:59',
+                ]);
             }
 
             // Pagination or fetch all
@@ -50,42 +57,51 @@ class TransitionController extends Controller
 
             // Format transitions
             $formattedTransitions = $transitions->map(function ($transition) {
+                $payment = $transition->payment;   // may be null
+                $order   = $payment?->order;       // may be null
+
+                $totalAmount = (float) ($payment?->amount ?? 0);
+                $paidAmount  = (float) ($payment?->paid_amount ?? 0);
+
                 return [
                     'transition_id' => $transition->id,
-                    'payment_id' => $transition->payment_id,
-                    'amount' => $transition->amount,
+                    'payment_id'    => $transition->payment_id,
+                    'amount'        => $transition->amount,
+
                     'payment_details' => [
-                        'order_id' => $transition->payment->order_id,
-                        'status' => $transition->payment->status,
-                        'total_amount' => $transition->payment->amount,
-                        'padi_amount' => $transition->payment->padi_amount,
-                        'due_amount' => $transition->payment->amount - $transition->payment->padi_amount,
-                        'payment_type' => $transition->payment->payment_type,
-                        'trxed' => $transition->payment->trxed,
-                        'phone' => $transition->payment->phone,
+                        'order_id'      => $payment?->order_id,
+                        'invoice_code'  => $order?->invoice_code, 
+                        'status'        => $payment?->status,
+                        'total_amount'  => $totalAmount,
+                        'paid_amount'   => $paidAmount,
+                        'due_amount'    => $totalAmount - $paidAmount,
+                        'payment_type'  => $payment?->payment_type,
+                        'trxed'         => $payment?->trxed,
+                        'phone'         => $payment?->phone,
                     ],
-                    'created_at' => $transition->created_at->format('Y-m-d H:i:s'),
-                    'updated_at' => $transition->updated_at->format('Y-m-d H:i:s'),
+
+                    'created_at' => $transition->created_at?->format('Y-m-d H:i:s'),
+                    'updated_at' => $transition->updated_at?->format('Y-m-d H:i:s'),
                 ];
             });
 
             $response = [
                 'success' => true,
-                'status' => 200,
+                'status'  => 200,
                 'message' => 'Transitions fetched successfully.',
-                'data' => $formattedTransitions,
-                'errors' => null,
+                'data'    => $formattedTransitions,
+                'errors'  => null,
             ];
 
             // Add pagination metadata
-            if ($perPage && $currentPage) {
+            if ($perPage && $currentPage && method_exists($transitions, 'total')) {
                 $response['pagination'] = [
-                    'total' => $transitions->total(),
-                    'per_page' => $transitions->perPage(),
-                    'current_page' => $transitions->currentPage(),
-                    'last_page' => $transitions->lastPage(),
-                    'from' => $transitions->firstItem(),
-                    'to' => $transitions->lastItem(),
+                    'total'         => $transitions->total(),
+                    'per_page'      => $transitions->perPage(),
+                    'current_page'  => $transitions->currentPage(),
+                    'last_page'     => $transitions->lastPage(),
+                    'from'          => $transitions->firstItem(),
+                    'to'            => $transitions->lastItem(),
                 ];
             }
 
@@ -93,10 +109,10 @@ class TransitionController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'status' => 500,
+                'status'  => 500,
                 'message' => 'Failed to fetch transitions.',
-                'data' => null,
-                'errors' => $e->getMessage(),
+                'data'    => null,
+                'errors'  => $e->getMessage(),
             ], 500);
         }
     }
