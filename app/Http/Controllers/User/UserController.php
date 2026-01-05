@@ -89,83 +89,135 @@ class UserController extends Controller
 
 
     // shwo user all information
-    public function shwoAllInfo(Request $request, $userId)
+    public function shwoAllInfo(Request $request, $userId = null)
     {
-        $perPage = $request->input('limit');
-        $currentPage = $request->input('page');
+        try {
+            $perPage = (int) $request->input('limit', 0);
 
-        $query = User::select('id', 'name', 'email', 'phone', 'created_at', 'address');
+            // Base query with eager-load wishlist products + primary image
+            $query = User::select('id', 'name', 'email', 'phone', 'created_at', 'address')
+                ->with([
+                    'wishlists.product:id,name',
+                    'wishlists.product.primaryImage:id,product_id,image_url,image_path,is_primary',
+                ]);
 
-        if ($userId) {
-            $query->where('id', $userId);
-        }
+            if (!empty($userId)) {
+                $query->where('id', $userId);
+            }
 
-        if ($perPage && $currentPage) {
-            $users = $query->paginate($perPage);
-        } else {
-            $users = $query->get();
-        }
+            // paginate or get
+            if ($perPage > 0) {
+                $users = $query->paginate($perPage);
+                $userCollection = $users->getCollection();
+            } else {
+                $users = $query->get();
+                $userCollection = $users;
+            }
 
-        if ($users->isEmpty()) {
+            if ($userCollection->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'status' => 404,
+                    'message' => 'No users found.',
+                    'data' => null,
+                    'errors' => 'No users found.',
+                ], 404);
+            }
+
+            $allUsersData = [];
+
+            foreach ($userCollection as $user) {
+                // Shipping
+                $shippingAddresses = ShippingAddress::where('User_id', $user->id)->get();
+
+                // Orders
+                $orders = Order::where('user_id', $user->id)->get();
+                $totalOrders = $orders->count();
+
+                // if status=1 means completed/paid order
+                $totalAmount = $orders->where('status', 1)->sum('total_amount');
+
+                // Payments for user orders (status=1 orders)
+                $payments = Payment::whereHas('order', function ($q) use ($user) {
+                    $q->where('user_id', $user->id)
+                        ->where('status', 1);
+                })->get();
+
+                $totalDueAmount = $payments->sum(function ($payment) {
+                    $amount = (float) ($payment->amount ?? 0);
+                    $paid   = (float) ($payment->paid_amount ?? 0); // FIXED
+                    return max(0, $amount - $paid);
+                });
+
+                // Wishlist products (name + image)
+                $wishlistProducts = $user->wishlists->map(function ($w) {
+                    $product = $w->product;
+
+                    // image preference: image_url if exists, else image_path
+                    $primaryImage = $product?->primaryImage;
+                    $image = null;
+
+                    if ($primaryImage) {
+                        $image = $primaryImage->image_url ?: $primaryImage->image_path;
+                    }
+
+                    return [
+                        'wishlist_id' => $w->id,
+                        'product_id' => $product?->id,
+                        'product_name' => $product?->name,
+                        'product_image' => $image,
+                    ];
+                })->values();
+
+                $allUsersData[] = [
+                    'user' => $user,
+                    'shipping_addresses' => $shippingAddresses,
+
+                    'order_summary' => [
+                        'total_orders' => $totalOrders,
+                        'total_spend' => (float) $totalAmount,
+                    ],
+
+                    'payment_summary' => [
+                        'due_amount' => (float) $totalDueAmount,
+                    ],
+
+                    'wishlist' => [
+                        'count' => $wishlistProducts->count(),
+                        'products' => $wishlistProducts,
+                    ],
+                ];
+            }
+
+            $pagination = null;
+            if ($perPage > 0) {
+                $pagination = [
+                    'total_rows' => $users->total(),
+                    'current_page' => $users->currentPage(),
+                    'per_page' => $users->perPage(),
+                    'total_pages' => $users->lastPage(),
+                    'has_more_pages' => $users->hasMorePages(),
+                ];
+            }
+
+            return response()->json([
+                'success' => true,
+                'status' => 200,
+                'message' => 'User information retrieved successfully.',
+                'data' => $allUsersData,
+                'pagination' => $pagination,
+                'error' => null,
+            ], 200);
+        } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'status' => 404,
-                'message' => 'No users found.',
+                'status' => 500,
+                'message' => 'Something went wrong.',
                 'data' => null,
-                'errors' => 'No users found.',
-            ], 404);
+                'errors' => $e->getMessage(),
+            ], 500);
         }
-
-        $allUsersData = [];
-
-        foreach ($users as $user) {
-            $shippingAddresses = ShippingAddress::where('User_id', $user->id)->get();
-            $orders = Order::where('user_id', $user->id)->get();
-            $totalOrders = $orders->count();
-            $totalAmount = $orders->where('status', 1)->sum('total_amount');
-
-            $payments = Payment::whereHas('order', function ($query) use ($user) {
-                $query->where('user_id', $user->id)
-                    ->where('status', 1);
-            })->get();
-
-            $totalDueAmount = $payments->sum(function ($payment) {
-                return $payment->amount - $payment->padi_amount;
-            });
-
-            $userData = [
-                'user' => $user,
-                'shipping_addresses' => $shippingAddresses,
-                'order_summary' => [
-                    'total_orders' => $totalOrders,
-                    'total_spend' => $totalAmount,
-                ],
-                'payment_summary' => [
-                    'due_amount' => $totalDueAmount,
-                ],
-            ];
-
-            $allUsersData[] = $userData;
-        }
-
-        $pagination = $perPage ? [
-            'total_rows' => $users->total(),
-            'current_page' => $users->currentPage(),
-            'per_page' => $users->perPage(),
-            'total_pages' => $users->lastPage(),
-            'has_more_pages' => $users->hasMorePages(),
-        ] : null;
-
-        return response()->json([
-            'success' => true,
-            'status' => 200,
-            'message' => 'User information retrieved successfully.',
-            'data' => $allUsersData,
-            'pagination' => $pagination,
-            'error' => null,
-        ], 200);
     }
-
 
     // Shwo all active
     public function getActivities(Request $request)

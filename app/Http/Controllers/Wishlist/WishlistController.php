@@ -14,10 +14,9 @@ class WishlistController extends Controller
     public function store(Request $request)
     {
         try {
-            // Validate the input
             $validator = Validator::make($request->all(), [
                 'user_id' => 'required|exists:users,id',
-                'product_id' => 'required|exists:items,id',
+                'product_id' => 'required|exists:products,id',
             ]);
 
             if ($validator->fails()) {
@@ -29,12 +28,18 @@ class WishlistController extends Controller
                 ], 400);
             }
 
-            // Check if the item is already in the wishlist
-            $existingWishlistItem = Wishlist::where('user_id', $request->user_id)
-                ->where('product_id', $request->product_id)
-                ->exists();
+            $wishlistItem = Wishlist::firstOrCreate(
+                [
+                    'user_id' => $request->user_id,
+                    'product_id' => $request->product_id,
+                ],
+                [
+                    'user_id' => $request->user_id,
+                    'product_id' => $request->product_id,
+                ]
+            );
 
-            if ($existingWishlistItem) {
+            if (!$wishlistItem->wasRecentlyCreated) {
                 return response()->json([
                     'success' => false,
                     'status' => 409,
@@ -44,17 +49,29 @@ class WishlistController extends Controller
                 ], 409);
             }
 
-            // Create the wishlist item
-            $wishlistItem = Wishlist::create([
-                'user_id' => $request->user_id,
-                'product_id' => $request->product_id,
+            // Return product info also (nice for UI)
+            $wishlistItem->load([
+                'product:id,name',
+                'product.primaryImage:id,product_id,image_url,image_path,is_primary',
             ]);
+
+            $image = null;
+            if ($wishlistItem->product && $wishlistItem->product->primaryImage) {
+                $image = $wishlistItem->product->primaryImage->image_url
+                    ?: $wishlistItem->product->primaryImage->image_path;
+            }
 
             return response()->json([
                 'success' => true,
                 'status' => 201,
                 'message' => 'Wishlist item added successfully.',
-                'data' => $wishlistItem,
+                'data' => [
+                    'wishlist_id' => $wishlistItem->id,
+                    'user_id' => $wishlistItem->user_id,
+                    'product_id' => $wishlistItem->product_id,
+                    'product_name' => $wishlistItem->product?->name,
+                    'product_image' => $image,
+                ],
             ], 201);
         } catch (\Exception $e) {
             return response()->json([
@@ -65,6 +82,7 @@ class WishlistController extends Controller
             ], 500);
         }
     }
+
 
 
 

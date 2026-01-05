@@ -7,10 +7,12 @@ Route::middleware('auth:api', 'role:admin,stuff,member')->group(function () {
 
     // reposts routes
     Route::prefix('reports')->group(function () {
-        Route::get('/expenses/monthly-total', [ReportController::class, 'getExpenseMonthly']);
-        Route::get('/transitions/monthly-total', [ReportController::class, 'getMonthlyTransition']);
-        Route::get('/top-selling-items', [ReportController::class, 'topSellingItems']);
-
-        Route::get('/sales-over-time', [ReportController::class, 'salesOverTime']);
+        Route::get('/overview', [ReportController::class, 'overview']);
+        Route::get('/sales', [ReportController::class, 'sales']);
+        Route::get('/receivables', [ReportController::class, 'receivables']);
+        Route::get('/inventory', [ReportController::class, 'inventory']);
+        Route::get('/best-sellers', [ReportController::class, 'bestSellers']);
+        Route::get('/coupons', [ReportController::class, 'coupons']);
+        Route::get('/wishlists', [ReportController::class, 'wishlists']);
     });
 });
