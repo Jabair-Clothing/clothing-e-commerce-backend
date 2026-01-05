@@ -15,6 +15,8 @@ use App\Mail\VerifyEmail;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cookie;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class AuthController extends Controller
 {
@@ -393,7 +395,6 @@ class AuthController extends Controller
                 'status' => 1,
             ]);
 
-            $token = $user->createToken('auth_token')->plainTextToken;
 
             return response()->json([
                 'success' => true,
@@ -406,10 +407,9 @@ class AuthController extends Controller
                     'phone' => $user->phone,
                     'type' => $user->type,
                     'status' => $user->status,
-                    'token' => $token,
                 ],
                 'errors' => null,
-            ])->cookie('token', $token, 60 * 24 * 7); // Cookie valid for 7 days
+            ]);
         } catch (\Exception $e) {
             $errorMessage = $e->getMessage();
 
@@ -639,15 +639,31 @@ class AuthController extends Controller
         ], 200);
     }
 
-    public function destroyuser(User $user): JsonResponse
+    public function destroyuser(int $id): JsonResponse
     {
-        DB::transaction(function () use ($user) {
-            $user->delete();
-        });
+        try {
+            $user = User::find($id);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'User and all related data deleted successfully.',
-        ], 200);
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'User not found.',
+                ], 404);
+            }
+
+            DB::transaction(fn() => $user->delete());
+
+            return response()->json([
+                'success' => true,
+                'message' => 'User and all related data deleted successfully.',
+            ], 200);
+        } catch (Throwable $e) {
+            Log::error('User delete failed', ['user_id' => $id, 'error' => $e->getMessage()]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete user. Please try again.',
+            ], 500);
+        }
     }
 }
