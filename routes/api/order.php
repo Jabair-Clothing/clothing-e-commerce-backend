@@ -26,8 +26,6 @@ Route::middleware('auth:api', 'role:admin,stuff,member')->group(function () {
         Route::put('/update-customer-info/{order_Id}', [OrderController::class, 'updateCustomerInfo']);
 
         Route::delete('{orderId}', [OrderController::class, 'deleteOrder']);
-
-        Route::get('/summary/due-amount', [OrderController::class, 'getOrderSummary']);
     });
 
     // Order Info Routes
