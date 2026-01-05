@@ -25,24 +25,30 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         try {
-            $perPage = $request->input('limit', 10);
-            $search = $request->input('search');
-            $categoryId = $request->input('category_id');
+            $perPage          = $request->input('limit', 10);
+            $search           = $request->input('search');
+            $categoryId       = $request->input('category_id');
             $parentCategoryId = $request->input('parent_category_id');
-            $status = $request->input('status');
+            $status           = $request->input('status');
 
-            $query = Product::with(['primaryImage', 'skus', 'category', 'parentCategory'])
+            $query = Product::with([
+                'primaryImage',
+                'category',
+                'parentCategory',
+                'skus.skuAttributes.attribute',
+                'skus.skuAttributes.attributeValue',
+            ])
                 ->orderBy('created_at', 'desc');
 
-            if ($search) {
+            if (!empty($search)) {
                 $query->where('name', 'like', '%' . $search . '%');
             }
 
-            if ($categoryId) {
+            if (!empty($categoryId)) {
                 $query->where('category_id', $categoryId);
             }
 
-            if ($parentCategoryId) {
+            if (!empty($parentCategoryId)) {
                 $query->where('parent_category_id', $parentCategoryId);
             }
 
@@ -52,13 +58,12 @@ class ProductController extends Controller
 
             $products = $query->paginate($perPage);
 
-            // Format data
-            $formattedData = $products->getCollection()->transform(function ($product) {
-                return $this->formatProduct($product);
+            // format collection
+            $formatted = $products->getCollection()->map(function ($product) {
+                return $this->formatProducts($product);
             });
 
-            // Replace collection with formatted data
-            $products->setCollection($formattedData);
+            $products->setCollection($formatted);
 
             return $this->success($products, 'Products retrieved successfully.');
         } catch (\Exception $e) {
@@ -66,6 +71,64 @@ class ProductController extends Controller
         }
     }
 
+    private function formatProducts($product)
+    {
+        // total stock (ignore deleted skus if you use is_deleted)
+        $stockQty = $product->skus
+            ->where('is_deleted', 0)
+            ->sum('quantity');
+
+        return [
+            'id' => $product->id,
+            'name' => $product->name,
+            'slug' => $product->slug,
+            'price' => (string) $product->base_price,
+            'is_active' => (bool) $product->is_active,
+
+            'category' => $product->category ? [
+                'id' => $product->category->id,
+                'name' => $product->category->name,
+            ] : null,
+
+            'parent_category' => $product->parentCategory ? [
+                'id' => $product->parentCategory->id,
+                'name' => $product->parentCategory->name,
+            ] : null,
+
+            'primary_image' => $product->primaryImage?->image_url,
+
+            'stock_quantity' => (int) $stockQty,
+
+            // add skus with attributes (NO sku image)
+            'skus' => $product->skus
+                ->where('is_deleted', 0)
+                ->values()
+                ->map(function ($sku) {
+
+                    $attributes = $sku->skuAttributes
+                        ->map(function ($skuAttr) {
+                            return [
+                                'attribute_id'   => $skuAttr->attribute_id,
+                                'attribute_name' => $skuAttr->attribute?->name,
+
+                                'value_id'       => $skuAttr->attribute_value_id,
+                                'value_name'     => $skuAttr->attributeValue?->name,
+                                'value_code'     => $skuAttr->attributeValue?->code,
+                            ];
+                        })
+                        ->filter(fn($a) => $a['attribute_name'] && $a['value_name'])
+                        ->values();
+
+                    return [
+                        'id'       => $sku->id,
+                        'sku'      => $sku->sku,
+                        'price'    => (string) ($sku->discount_price ?? $sku->price),
+                        'quantity' => (int) $sku->quantity,
+                        'attributes' => $attributes,
+                    ];
+                }),
+        ];
+    }
     /**
      * Store a newly created product in storage.
      */

@@ -72,4 +72,12 @@ class Order extends Model
     {
         return $this->hasMany(Order::class, 'coupons_id');
     }
+
+    protected static function booted()
+    {
+        static::deleting(function ($order) {
+            $order->orderItems()->delete();
+            $order->payments()->delete();
+        });
+    }
 }

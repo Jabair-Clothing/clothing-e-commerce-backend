@@ -16,7 +16,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use App\Jobs\SendOrderEmailsJob;
 use App\Helpers\ActivityHelper;
-use App\Services\FileUploadService;
+
 
 class OrderController extends Controller
 {
@@ -1053,19 +1053,31 @@ class OrderController extends Controller
         }
     }
 
-    // add new product to order
     public function addProductToOrder(Request $request, $orderId)
     {
         DB::beginTransaction();
+
         try {
-            // Validate the request
-            $request->validate([
-                'product_id' => 'required|exists:items,id',
-                'quantity' => 'required|integer|min:1',
+            // validate request (same style as placeOrder)
+            $validator = Validator::make($request->all(), [
+                'product_id'     => 'required|exists:products,id',
+                'product_sku_id' => 'required|exists:product_skus,id',
+                'quantity'       => 'required|integer|min:1',
+                'price'          => 'nullable|numeric|min:0',
             ]);
 
-            // Find the order
-            $order = Order::find($orderId);
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'status' => 422,
+                    'message' => 'Validation failed.',
+                    'data' => null,
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
+
+            // find order
+            $order = Order::lockForUpdate()->find($orderId);
             if (!$order) {
                 return response()->json([
                     'success' => false,
@@ -1076,103 +1088,176 @@ class OrderController extends Controller
                 ], 404);
             }
 
-            // Find the product in the items table
-            $product = Product::find($request->input('product_id'));
-            if (!$product) {
-                return response()->json([
-                    'success' => false,
-                    'status' => 404,
-                    'message' => 'Product not found.',
-                    'data' => null,
-                    'errors' => 'No query results for model [App\Models\Product] ' . $request->input('product_id'),
-                ], 404);
+            //  load sku and verify it belongs to product
+            $sku = ProductSku::with([
+                'product.parentCategory',
+                'product.category',
+                'skuAttributes.attribute',
+                'skuAttributes.attributeValue',
+            ])
+                ->lockForUpdate()
+                ->find($request->product_sku_id);
+
+            if (!$sku) {
+                throw new \Exception('SKU not found.', 404);
             }
 
-            // Use the product's price if no price is provided in the request
-            $price = $request->input('price', $product->base_price);
+            if ((int)$sku->product_id !== (int)$request->product_id) {
+                return response()->json([
+                    'success' => false,
+                    'status' => 400,
+                    'message' => 'SKU does not belong to this product.',
+                    'data' => null,
+                    'errors' => [
+                        'product_id' => $request->product_id,
+                        'product_sku_id' => $request->product_sku_id,
+                    ],
+                ], 400);
+            }
 
-            // Check if the product already exists in the order
+            $product = $sku->product;
+            if (!$product) {
+                throw new \Exception('Product not found for this SKU.', 404);
+            }
+
+            $qtyToAdd = (int)$request->quantity;
+
+            //  stock check and update SKU quantity
+            if ((int)$sku->quantity < $qtyToAdd) {
+                return response()->json([
+                    'success' => false,
+                    'status' => 409,
+                    'message' => 'Insufficient stock for this SKU.',
+                    'data' => null,
+                    'errors' => [
+                        'sku' => $sku->sku,
+                        'available' => (int)$sku->quantity,
+                        'requested' => $qtyToAdd,
+                    ],
+                ], 409);
+            }
+
+            $sku->quantity -= $qtyToAdd;
+            $sku->save();
+
+            // choose price: request price OR sku discount_price OR sku price OR product base_price
+            $unitPrice = $request->input('price');
+            if ($unitPrice === null) {
+                $unitPrice = $sku->discount_price ?? $sku->price ?? $product->base_price;
+            }
+            $unitPrice = (float)$unitPrice;
+
+            //  check if order already has same product + same sku
             $orderItem = Order_list::where('order_id', $orderId)
-                ->where('product_id', $request->input('product_id'))
+                ->where('product_id', $product->id)
+                ->where('product_sku_id', $sku->id)
                 ->first();
 
             if ($orderItem) {
-                // If the product already exists, update the quantity and price
-                $oldTotal = $orderItem->quantity * $orderItem->price;
-                $orderItem->quantity += $request->input('quantity');
-                $orderItem->price = $price;
+                $oldLineTotal = (float)$orderItem->price * (int)$orderItem->quantity;
+
+                $orderItem->quantity = (int)$orderItem->quantity + $qtyToAdd;
+                $orderItem->price    = $unitPrice; // keep latest unit price
                 $orderItem->save();
-                $newTotal = $orderItem->quantity * $orderItem->price;
+
+                $newLineTotal = (float)$orderItem->price * (int)$orderItem->quantity;
             } else {
-                // If the product does not exist, create a new order item
+                $oldLineTotal = 0;
+
                 $orderItem = Order_list::create([
-                    'order_id' => $orderId,
-                    'product_id' => $request->input('product_id'),
-                    'quantity' => $request->input('quantity'),
-                    'price' => $price,
+                    'order_id'        => $orderId,
+                    'product_id'      => $product->id,
+                    'product_sku_id'  => $sku->id,
+                    'quantity'        => $qtyToAdd,
+                    'price'           => $unitPrice,
                 ]);
-                $oldTotal = 0;
-                $newTotal = $orderItem->quantity * $orderItem->price;
+
+                $newLineTotal = (float)$orderItem->price * (int)$orderItem->quantity;
             }
 
-            // Calculate the difference in total amount
-            $amountDifference = $newTotal - $oldTotal;
+            //  difference to apply to order totals
+            $amountDifference = $newLineTotal - $oldLineTotal;
 
-            // Update the total_amount in the order table
-            $order->total_amount += $amountDifference;
+            //  update order item_subtotal + total_amount
+            $order->item_subtotal = (float)$order->item_subtotal + $amountDifference;
+            $order->total_amount  = (float)$order->total_amount + $amountDifference;
             $order->save();
 
-            // Update the amount in the payment table
+            // update payment amount
             $payment = Payment::where('order_id', $orderId)->first();
             if ($payment) {
-                $payment->amount += $amountDifference;
+                $payment->amount = (float)$payment->amount + $amountDifference;
                 $payment->save();
             }
 
-            $actionType = $oldTotal > 0 ? 'Updated existing product' : 'Added new product';
+            // regenerate order_description based on ALL order items (with sku + attrs + categories)
+            $orderItemsForDesc = Order_list::where('order_id', $orderId)
+                ->get(['product_id', 'product_sku_id', 'quantity'])
+                ->map(function ($row) {
+                    return [
+                        'product_id' => $row->product_id,
+                        'product_sku_id' => $row->product_sku_id,
+                        'quantity' => $row->quantity,
+                    ];
+                })
+                ->toArray();
 
-            $activityDesc = "{$actionType} in Order ID: {$orderId}, Product: {$product->name}, Quantity: {$orderItem->quantity}, Price: {$orderItem->price}, ";
+            $order->order_description = $this->generateOrderDescription($orderItemsForDesc);
+            $order->save();
+
+            //  activity log
+            $actionType = $oldLineTotal > 0 ? 'Updated existing product SKU' : 'Added new product SKU';
+
+            $activityDesc  = "{$actionType} in Order ID: {$orderId}, ";
+            $activityDesc .= "Product: {$product->name}, SKU: {$sku->sku}, ";
+            $activityDesc .= "Qty Added: {$qtyToAdd}, Unit Price: {$unitPrice}, ";
             $activityDesc .= "Amount Change: {$amountDifference}, Updated at - " . now()->toDateTimeString();
 
-            // Use helper instead of direct create
-            ActivityHelper::logActivity(
-                $orderId,
-                'order',
-                $activityDesc
-            );
+            ActivityHelper::logActivity($orderId, 'order', $activityDesc);
 
-            // Commit the transaction
             DB::commit();
 
-            // Return success response
             return response()->json([
                 'success' => true,
                 'status' => 200,
                 'message' => 'Product added to order successfully.',
                 'data' => [
                     'order_id' => $order->id,
-                    'product_id' => $orderItem->product_id,
-                    'quantity' => $orderItem->quantity,
-                    'price' => $orderItem->price,
-                    'new_total_amount' => $order->total_amount,
-                    'payment_amount' => $payment ? $payment->amount : null,
+                    'order_item_id' => $orderItem->id,
+
+                    'product_id' => $product->id,
+                    'product_sku_id' => $sku->id,
+                    'product_sku' => $sku->sku,
+
+                    'quantity' => (int)$orderItem->quantity,
+                    'unit_price' => (float)$orderItem->price,
+                    'line_total' => (float)$orderItem->price * (int)$orderItem->quantity,
+
+                    'amount_difference' => $amountDifference,
+
+                    'new_item_subtotal' => (float)$order->item_subtotal,
+                    'new_total_amount'  => (float)$order->total_amount,
+                    'payment_amount'    => $payment ? (float)$payment->amount : null,
+
+                    'order_description' => $order->order_description,
                 ],
                 'errors' => null,
             ], 200);
         } catch (\Exception $e) {
-            // Rollback the transaction in case of error
             DB::rollBack();
 
-            // Handle exceptions and return error response
+            $statusCode = ($e->getCode() >= 400 && $e->getCode() < 500) ? $e->getCode() : 500;
+
             return response()->json([
                 'success' => false,
-                'status' => 500,
+                'status' => $statusCode,
                 'message' => 'Failed to add product to order.',
                 'data' => null,
                 'errors' => $e->getMessage(),
-            ], 500);
+            ], $statusCode);
         }
     }
+
 
     // shwo due amount of all orders in dashboard
     public function getOrderSummary(Request $request)
@@ -1426,5 +1511,66 @@ class OrderController extends Controller
                 ];
             })->values(),
         ];
+    }
+
+    public function deleteOrder($orderId)
+    {
+        DB::beginTransaction();
+
+        try {
+            $order = Order::with(['orderItems', 'payments'])->find($orderId);
+
+            if (!$order) {
+                return response()->json([
+                    'success' => false,
+                    'status' => 404,
+                    'message' => 'Order not found',
+                    'data' => null,
+                    'errors' => null,
+                ], 404);
+            }
+
+            // If you want to prevent deleting completed orders, uncomment:
+            // if ((int)$order->status === 4) {
+            //     return response()->json([
+            //         'success' => false,
+            //         'status' => 403,
+            //         'message' => 'Completed order cannot be deleted',
+            //         'data' => null,
+            //         'errors' => null,
+            //     ], 403);
+            // }
+
+            //  Option A: If you added booted() deleting() in Order model
+            $order->delete();
+
+            //  Option B (if you did NOT add booted()): manual delete
+            // $order->orderItems()->delete();
+            // $order->payments()->delete();
+            // $order->delete();
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'status' => 200,
+                'message' => 'Order deleted successfully',
+                'data' => [
+                    'order_id' => $orderId,
+                    'invoice_code' => $order->invoice_code,
+                ],
+                'errors' => null,
+            ], 200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'success' => false,
+                'status' => 500,
+                'message' => 'Failed to delete order',
+                'data' => null,
+                'errors' => $e->getMessage(),
+            ], 500);
+        }
     }
 }
