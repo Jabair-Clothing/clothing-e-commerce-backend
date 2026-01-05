@@ -285,92 +285,20 @@ class AuthController extends Controller
 
 
     // User registration
-    public function Userregister(Request $request)
-    {
-        try {
-            // Validate the request data
-            $validator = Validator::make($request->all(), [
-                'name' => 'required|string|max:255',
-                'email' => 'required|string|email|max:255|unique:users',
-                'password' => 'required|string|min:8',
-                'phone' => 'required|string|size:11',
-            ]);
-
-            // If validation fails, return error response
-            if ($validator->fails()) {
-                // Get the first error message
-                $errorMessage = $validator->errors()->first();
-
-                return response()->json([
-                    'success' => false,
-                    'status' => 422,
-                    'message' => 'Validation failed.',
-                    'data' => null,
-                    'errors' => $errorMessage,
-                ], 422);
-            }
-
-            // Create the user
-            $user = User::create([
-                'name' => $request->name,
-                'email' => $request->email,
-                'password' => Hash::make($request->password),
-                'phone' => $request->phone,
-                'type' => 'user',
-                'status' => 1,
-            ]);
-
-            // Send the verification email
-            Mail::to($user->email)->send(new VerifyEmail($user));
-
-            // Return success response
-            return response()->json([
-                'success' => true,
-                'status' => 201,
-                'message' => 'User registered successfully. Please check your email to verify your account.',
-                'data' => [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'email' => $user->email,
-                    'phone' => $user->phone,
-                    'type' => $user->type,
-                    'status' => $user->status,
-                ],
-                'errors' => null,
-            ], 201);
-        } catch (\Exception $e) {
-            // Extract only the main error message
-            $errorMessage = $e->getMessage();
-
-            // // Check if it's a SQL Integrity Constraint Violation
-            // if (str_contains($errorMessage, 'Integrity constraint violation')) {
-            //     preg_match("/Duplicate entry '(.+?)' for key '(.+?)'/", $errorMessage, $matches);
-            //     if (!empty($matches)) {
-            //         $errorMessage = "Duplicate entry '{$matches[1]}' for key '{$matches[2]}'";
-            //     }
-            // }
-            // Handle any exceptions
-            return response()->json([
-                'success' => false,
-                'status' => 500,
-                'message' => 'An error occurred while registering the user.',
-                'data' => null,
-                'errors' => $errorMessage,
-            ], 500);
-        }
-    }
-
     // public function Userregister(Request $request)
     // {
     //     try {
+    //         // Validate the request data
     //         $validator = Validator::make($request->all(), [
     //             'name' => 'required|string|max:255',
     //             'email' => 'required|string|email|max:255|unique:users',
     //             'password' => 'required|string|min:8',
-    //             'phone' => 'required|string|size:11|unique:users',
+    //             'phone' => 'required|string|size:11',
     //         ]);
 
+    //         // If validation fails, return error response
     //         if ($validator->fails()) {
+    //             // Get the first error message
     //             $errorMessage = $validator->errors()->first();
 
     //             return response()->json([
@@ -382,6 +310,7 @@ class AuthController extends Controller
     //             ], 422);
     //         }
 
+    //         // Create the user
     //         $user = User::create([
     //             'name' => $request->name,
     //             'email' => $request->email,
@@ -391,12 +320,14 @@ class AuthController extends Controller
     //             'status' => 1,
     //         ]);
 
-    //         $token = $user->createToken('auth_token')->plainTextToken;
+    //         // Send the verification email
+    //         Mail::to($user->email)->send(new VerifyEmail($user));
 
+    //         // Return success response
     //         return response()->json([
     //             'success' => true,
     //             'status' => 201,
-    //             'message' => 'User registered successfully.',
+    //             'message' => 'User registered successfully. Please check your email to verify your account.',
     //             'data' => [
     //                 'id' => $user->id,
     //                 'name' => $user->name,
@@ -404,13 +335,21 @@ class AuthController extends Controller
     //                 'phone' => $user->phone,
     //                 'type' => $user->type,
     //                 'status' => $user->status,
-    //                 'token' => $token,
     //             ],
     //             'errors' => null,
-    //         ])->cookie('token', $token, 60 * 24 * 7); // Cookie valid for 7 days
+    //         ], 201);
     //     } catch (\Exception $e) {
+    //         // Extract only the main error message
     //         $errorMessage = $e->getMessage();
 
+    //         // // Check if it's a SQL Integrity Constraint Violation
+    //         // if (str_contains($errorMessage, 'Integrity constraint violation')) {
+    //         //     preg_match("/Duplicate entry '(.+?)' for key '(.+?)'/", $errorMessage, $matches);
+    //         //     if (!empty($matches)) {
+    //         //         $errorMessage = "Duplicate entry '{$matches[1]}' for key '{$matches[2]}'";
+    //         //     }
+    //         // }
+    //         // Handle any exceptions
     //         return response()->json([
     //             'success' => false,
     //             'status' => 500,
@@ -420,6 +359,67 @@ class AuthController extends Controller
     //         ], 500);
     //     }
     // }
+
+    public function Userregister(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'name' => 'required|string|max:255',
+                'email' => 'required|string|email|max:255|unique:users',
+                'password' => 'required|string|min:8',
+                'phone' => 'required|string|size:11|unique:users',
+            ]);
+
+            if ($validator->fails()) {
+                $errorMessage = $validator->errors()->first();
+
+                return response()->json([
+                    'success' => false,
+                    'status' => 422,
+                    'message' => 'Validation failed.',
+                    'data' => null,
+                    'errors' => $errorMessage,
+                ], 422);
+            }
+
+            $user = User::create([
+                'name' => $request->name,
+                'email' => $request->email,
+                'password' => Hash::make($request->password),
+                'phone' => $request->phone,
+                'type' => 'user',
+                'status' => 1,
+            ]);
+
+            $token = $user->createToken('auth_token')->plainTextToken;
+
+            return response()->json([
+                'success' => true,
+                'status' => 201,
+                'message' => 'User registered successfully.',
+                'data' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'phone' => $user->phone,
+                    'type' => $user->type,
+                    'status' => $user->status,
+                    'token' => $token,
+                ],
+                'errors' => null,
+            ])->cookie('token', $token, 60 * 24 * 7); // Cookie valid for 7 days
+        } catch (\Exception $e) {
+            $errorMessage = $e->getMessage();
+
+            return response()->json([
+                'success' => false,
+                'status' => 500,
+                'message' => 'An error occurred while registering the user.',
+                'data' => null,
+                'errors' => $errorMessage,
+            ], 500);
+        }
+    }
 
 
     // user login
