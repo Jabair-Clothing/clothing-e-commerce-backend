@@ -26,7 +26,7 @@ class CategoryController extends Controller
                 $query->where('name', 'like', '%' . $request->search . '%');
             }
 
-            $parents = $query->orderBy('created_at', 'desc')->get();
+            $parents = $query->orderBy('created_at', 'asc')->get();
 
             // Append Image URLs
             foreach ($parents as $parent) {
