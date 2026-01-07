@@ -9,6 +9,8 @@ return [
         'http://localhost:3000',
         'http://localhost:5174',
         'http://localhost:5173',
+        'https://admin.jabaibgroup.com',
+        'https://jabaibgroup.com',
     ],
 
     'allowed_headers' => ['*'],
