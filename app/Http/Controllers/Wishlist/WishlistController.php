@@ -89,70 +89,66 @@ class WishlistController extends Controller
     // Show wishlist items for a specific user
     public function show(Request $request)
     {
-        // Get user id from auth
-        $user_id = auth()->id();
+        $userId = auth()->id();
 
-        // Get 'limit' and 'page' from request
         $perPage = $request->input('limit');
-        $currentPage = $request->input('page');
+        $page = $request->input('page');
 
-        // Fetch wishlist items for the user with product details
-        $wishlistQuery = Wishlist::where('user_id', $user_id)
-            ->with('product.images')
+        $query = Wishlist::where('user_id', $userId)
+            ->with(['product.primaryImage', 'product.images'])
             ->orderBy('created_at', 'desc');
 
-        // Check if pagination parameters are provided
-        if ($perPage && $currentPage) {
-            $wishlistItems = $wishlistQuery->paginate($perPage);
-        } else {
-            $wishlistItems = $wishlistQuery->get();
-        }
+        $wishlistItems = ($perPage && $page)
+            ? $query->paginate($perPage)
+            : $query->get();
 
-        // Check if wishlist is empty
-        if ($wishlistItems->isEmpty()) {
+        if ($wishlistItems->count() === 0) {
             return response()->json([
                 'success' => false,
                 'status' => 404,
-                'message' => 'No wishlist items found for this user.',
+                'message' => 'Wishlist is empty',
                 'data' => [],
-                'errors' => 'No wishlist items found for this user.',
             ], 404);
         }
 
-        // Format response
-        $wishlistData = $wishlistItems->map(function ($wishlist) {
-            return [
-                'wishlistId' => $wishlist->id,
-                'product_id' => $wishlist->product->id,
-                'product_slug' => $wishlist->product->slug,
-                'name' => $wishlist->product->name,
-                'price' => $wishlist->product->price,
-                'discount' => $wishlist->product->discount,
-                'image' => $wishlist->product->images->isNotEmpty()
-                    ? FileUploadService::getUrls([$wishlist->product->images->first()->path])[0]
-                    : null,
+        $data = collect($wishlistItems)->map(function ($wishlist) {
+            $product = $wishlist->product;
 
+            $imagePath = $product->primaryImage
+                ? $product->primaryImage->path
+                : ($product->images->first()->path ?? null);
+
+            return [
+                'wishlist_id' => $wishlist->id,
+                'product_id' => $product->id,
+                'product_slug' => $product->slug,
+                'product_name' => $product->name,
+                'price' => $product->base_price,
+                'image_url' => $product->primaryImage
+                    ? $product->primaryImage->image_url
+                    : ($product->images->first()->image_url ?? null),
             ];
         });
 
-        // Pagination details (only if paginated)
-        $pagination = $perPage ? [
-            'total_rows' => $wishlistItems->total(),
-            'current_page' => $wishlistItems->currentPage(),
-            'per_page' => $wishlistItems->perPage(),
-            'total_pages' => $wishlistItems->lastPage(),
-            'has_more_pages' => $wishlistItems->hasMorePages(),
-        ] : null;
+        $pagination = $wishlistItems instanceof \Illuminate\Pagination\LengthAwarePaginator
+            ? [
+                'total_rows' => $wishlistItems->total(),
+                'current_page' => $wishlistItems->currentPage(),
+                'per_page' => $wishlistItems->perPage(),
+                'total_pages' => $wishlistItems->lastPage(),
+                'has_more_pages' => $wishlistItems->hasMorePages(),
+            ]
+            : null;
 
         return response()->json([
             'success' => true,
             'status' => 200,
-            'message' => 'Wishlist items retrieved successfully.',
-            'data' => $wishlistData,
+            'message' => 'Wishlist fetched successfully',
+            'data' => $data,
             'pagination' => $pagination,
-            'error' => null,
         ], 200);
     }
+
 
 
 
