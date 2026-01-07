@@ -40,7 +40,10 @@ class FileUploadService
         $paths = [];
 
         foreach ($files as $file) {
-            $cleanName = $name ? Str::slug($name, '_') : pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+            $cleanName = $name
+                ? Str::slug($name, '_')
+                : pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+
             $extension = $file->getClientOriginalExtension();
             $filename = $cleanName . "_{$prefix}_" . time() . '.' . $extension;
 
@@ -51,13 +54,12 @@ class FileUploadService
         return $paths;
     }
 
-
     /**
      * Get full URL for a single file
      */
     public static function getUrl($path)
     {
-        return $path ? Storage::disk('public')->url($path) : null;
+        return $path ? asset('storage/' . $path) : null;
     }
 
     /**
@@ -70,7 +72,7 @@ class FileUploadService
         }
 
         return array_map(function ($path) {
-            return Storage::disk('public')->url($path);
+            return asset('storage/' . $path);
         }, $paths);
     }
 }

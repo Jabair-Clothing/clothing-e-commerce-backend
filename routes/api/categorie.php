@@ -15,7 +15,7 @@ Route::middleware('auth:api', 'role:admin,stuff,member')->group(function () {
     });
 
     // Sub Categories Routes
-    Route::prefix('categories' )->group(function () {
+    Route::prefix('categories')->group(function () {
         Route::post('/', [CategoryController::class, 'storeSubCategory']);
         Route::get('/', [CategoryController::class, 'indexSubCategories']);
         Route::get('/{id}', [CategoryController::class, 'showSubCategory']);
@@ -24,6 +24,7 @@ Route::middleware('auth:api', 'role:admin,stuff,member')->group(function () {
     });
 });
 
-// Public Routes (if needed)
-Route::get('/public/categories/parents', [CategoryController::class, 'indexParents']);
-Route::get('/public/categories', [CategoryController::class, 'indexSubCategories']);
+// Public Routes (if needed)    
+Route::get('categories/parents', [CategoryController::class, 'indexParents']);
+Route::get('categories/parents/{id}', [CategoryController::class, 'showParent']);
+Route::get('categories', [CategoryController::class, 'indexSubCategories']);
