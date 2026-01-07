@@ -9,6 +9,7 @@ use App\Http\Controllers\Auth\AuthController;
 Route::middleware('auth:api', 'role:admin')->group(function () {
     Route::delete('/stuff/delete/{userid}', [AuthController::class, 'destroy']);
     Route::patch('/users/toggle-status/{userid}', [AuthController::class, 'toggleStatus']);
+    Route::delete('/users/{user}', [AuthController::class, 'destroyuser']);
 });
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
@@ -17,7 +18,6 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::prefix('users')->group(function () {
     Route::post('/register', [AuthController::class, 'Userregister']);
     Route::post('/login', [AuthController::class, 'Userlogin']);
-    Route::delete('/{user}', [AuthController::class, 'destroyuser']);
 });
 // Email varifications
 Route::get('/email/verify/{id}/{hash}', [EmailController::class, 'verify'])

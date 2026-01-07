@@ -20,7 +20,7 @@ class UserController extends Controller
     {
         $query = User::select('id', 'name', 'email', 'phone', 'address', 'type')
             ->where('type', 'user')
-            ->withCount('wishlists'); 
+            ->withCount('wishlists');
 
         // Search by name, email, or phone
         if ($search = $request->input('search')) {
@@ -359,7 +359,7 @@ class UserController extends Controller
             $totalAddresses = ShippingAddress::where('user_id', $user->id)->count();
             $totalSpent     = Payment::whereHas('order', function ($q) use ($user) {
                 $q->where('user_id', $user->id);
-            })->sum('padi_amount');
+            })->sum('paid_amount');
 
             return response()->json([
                 'success' => true,
