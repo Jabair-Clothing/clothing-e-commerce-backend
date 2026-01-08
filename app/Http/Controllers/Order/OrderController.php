@@ -69,6 +69,9 @@ class OrderController extends Controller
             // Save order items
             $this->saveOrderItems($order, $request->products);
 
+            // increase order counts
+            $this->increaseOrderCounts($request->products);
+
             // Create payment record
             $this->createPayment($order, $request, $calculatedTotal);
 
@@ -436,6 +439,31 @@ class OrderController extends Controller
             'data' => null,
         ], 200);
     }
+    private function increaseOrderCounts($products)
+    {
+        $productIds = collect($products)->pluck('product_id')->unique();
+
+        // Products + relations
+        $items = Product::with(['category', 'parentCategory'])
+            ->whereIn('id', $productIds)
+            ->get();
+
+        foreach ($items as $product) {
+            // product +1
+            $product->increment('count_order');
+
+            // category +1
+            if ($product->category) {
+                $product->category->increment('count_order');
+            }
+
+            // parent category +1
+            if ($product->parentCategory) {
+                $product->parentCategory->increment('count_order');
+            }
+        }
+    }
+
 
     // shwo all orders for admin page
     public function adminindex(Request $request)

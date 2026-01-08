@@ -25,6 +25,8 @@ Route::middleware('auth:api', 'role:admin,stuff,member')->group(function () {
 });
 
 // Public Routes (if needed)    
-Route::get('categories/parents', [CategoryController::class, 'indexParents']);
-Route::get('categories/parents/{id}', [CategoryController::class, 'showParent']);
-Route::get('categories', [CategoryController::class, 'indexSubCategories']);
+Route::get('/categories/parents', [CategoryController::class, 'indexParents']);
+Route::get('/categories/parents/{id}', [CategoryController::class, 'showParent']);
+Route::get('/categories', [CategoryController::class, 'indexSubCategories']);
+Route::post('/categories/parents/view', [CategoryController::class, 'parentCategoryView']);
+Route::post('/categories/view', [CategoryController::class, 'categoryView']);

@@ -46,6 +46,33 @@ class CategoryController extends Controller
         }
     }
 
+    public function parentCategoryView(Request $request)
+    {
+        try {
+            $request->validate([
+                'parent_category_id' => 'required|exists:parent_categories,id',
+            ]);
+
+            $parent = ParentCategory::find($request->parent_category_id);
+
+            if (!$parent) {
+                return $this->notFound('Parent category not found');
+            }
+
+            $parent->increment('count_view');
+
+            return $this->success(
+                ['count_view' => $parent->count_view],
+                'Parent category view counted'
+            );
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return $this->validationError($e->errors());
+        } catch (\Exception $e) {
+            return $this->serverError();
+        }
+    }
+
+
     public function storeParent(Request $request)
     {
         try {
@@ -200,6 +227,33 @@ class CategoryController extends Controller
             ], 200);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'status' => 500, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+
+    public function categoryView(Request $request)
+    {
+        try {
+            $request->validate([
+                'category_id' => 'required|exists:categories,id',
+            ]);
+
+            $category = Category::find($request->category_id);
+
+            if (!$category) {
+                return $this->notFound('Category not found');
+            }
+
+            $category->increment('count_view');
+
+            return $this->success(
+                ['count_view' => $category->count_view],
+                'Category view counted'
+            );
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return $this->validationError($e->errors());
+        } catch (\Exception $e) {
+            return $this->serverError();
         }
     }
 

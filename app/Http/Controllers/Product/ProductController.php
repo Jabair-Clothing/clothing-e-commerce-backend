@@ -311,6 +311,32 @@ class ProductController extends Controller
         }
     }
 
+    public function productView(Request $request)
+    {
+        try {
+            $request->validate([
+                'product_id' => 'required|exists:products,id',
+            ]);
+
+            $product = Product::find($request->product_id);
+
+            if (!$product) {
+                return $this->notFound('Product not found');
+            }
+
+            $product->increment('count_view');
+
+            return $this->success(
+                ['count_view' => $product->count_view],
+                'Product view counted'
+            );
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return $this->validationError($e->errors());
+        } catch (\Exception $e) {
+            return $this->serverError();
+        }
+    }
+
     /**
      * Update the specified product in storage.
      */

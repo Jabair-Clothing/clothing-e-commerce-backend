@@ -22,3 +22,4 @@ Route::middleware('auth:api', 'role:admin,stuff,member')->group(function () {
 // Public Routes
 Route::get('/products', [ProductController::class, 'index']);
 Route::get('/products/{id}', [ProductController::class, 'show']);
+Route::post('/products/view', [ProductController::class, 'productView']);
