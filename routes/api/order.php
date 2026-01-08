@@ -34,3 +34,6 @@ Route::middleware('auth:api', 'role:admin,stuff,member')->group(function () {
         Route::put('/', [OrderInfoController::class, 'update']);
     });
 });
+
+// Public Order Info Route
+Route::get('/orderinfo', [OrderInfoController::class, 'index']);

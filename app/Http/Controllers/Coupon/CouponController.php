@@ -378,13 +378,14 @@ class CouponController extends Controller
                 'products.*.quantity'   => 'integer|min:1',
             ]);
 
-            $coupon = Coupon::with('items')->where('code', $request->coupon_code)->first();
+            // Find coupon
+            $coupon = Coupon::with('products')->where('code', $request->coupon_code)->first();
 
             if (!$coupon) {
                 throw new \Exception('Invalid coupon code.', 404);
             }
 
-            if ($coupon->status != 1) { // Changed to 1 assuming 1 is active
+            if ($coupon->status != 1) { // assuming 1 = active
                 throw new \Exception('This coupon is not active.', 400);
             }
 
@@ -411,12 +412,12 @@ class CouponController extends Controller
                 }
             }
 
-            // Eligible amount
+            // Calculate eligible amount
             $eligibleAmount = 0;
             if ($coupon->is_global) {
                 $eligibleAmount = $request->total_amount;
             } else {
-                $couponProductIds = $coupon->items->pluck('id')->toArray();
+                $couponProductIds = $coupon->products->pluck('id')->toArray();
                 $cartProducts = collect($request->products ?? []);
                 $productIdsInCart = $cartProducts->pluck('product_id');
                 $itemsInCart = Product::whereIn('id', $productIdsInCart)->get()->keyBy('id');
@@ -449,14 +450,14 @@ class CouponController extends Controller
                 'message' => 'Coupon is valid!',
                 'data' => [
                     'coupon_id'   => $coupon->id,
-                    'discount' => round($discount, 2),
+                    'discount'    => round($discount, 2),
                     'final_total' => round($request->total_amount - $discount, 2)
                 ]
             ]);
         } catch (\Exception $e) {
             $status = $e->getCode();
             if (!is_int($status) || $status < 100 || $status > 599) {
-                $status = 400; // Default to 400 Bad Request for robustness
+                $status = 400; // Default to 400 Bad Request
             }
 
             return response()->json([
@@ -464,7 +465,7 @@ class CouponController extends Controller
                 'message' => $e->getMessage(),
                 'data' => [
                     'coupon_id'   => isset($coupon) ? $coupon->id : null,
-                    'discount' => 0,
+                    'discount'    => 0,
                     'final_total' => $request->total_amount ?? 0
                 ]
             ], $status);
