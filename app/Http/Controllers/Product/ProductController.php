@@ -141,6 +141,78 @@ class ProductController extends Controller
                 }),
         ];
     }
+
+    public function topSelling(Request $request)
+    {
+        try {
+            $perPage = $request->input('limit', 10);
+
+            $query = Product::with([
+                'primaryImage',
+                'category',
+                'parentCategory',
+                'skus.skuAttributes.attribute',
+                'skus.skuAttributes.attributeValue',
+            ])
+                ->where('count_order', '>', 0)
+                ->orderBy('count_order', 'desc')
+                ->orderBy('created_at', 'desc');
+
+            $products = $query->paginate($perPage);
+
+            // format collection (reuse same formatter)
+            $formatted = $products->getCollection()->map(function ($product) {
+                return $this->formatProducts($product);
+            });
+
+            $products->setCollection($formatted);
+
+            return $this->success($products, 'Top selling products retrieved successfully.');
+        } catch (\Exception $e) {
+            return $this->error(
+                'Failed to retrieve top selling products.',
+                500,
+                $e->getMessage()
+            );
+        }
+    }
+
+    public function mostViewed(Request $request)
+    {
+        try {
+            $perPage = $request->input('limit', 10);
+
+            $query = Product::with([
+                'primaryImage',
+                'category',
+                'parentCategory',
+                'skus.skuAttributes.attribute',
+                'skus.skuAttributes.attributeValue',
+            ])
+                ->where('count_view', '>', 0)
+                ->orderBy('count_view', 'desc')
+                ->orderBy('created_at', 'desc');
+
+            $products = $query->paginate($perPage);
+
+            // same formatter
+            $formatted = $products->getCollection()->map(function ($product) {
+                return $this->formatProducts($product);
+            });
+
+            $products->setCollection($formatted);
+
+            return $this->success($products, 'Most viewed products retrieved successfully.');
+        } catch (\Exception $e) {
+            return $this->error(
+                'Failed to retrieve most viewed products.',
+                500,
+                $e->getMessage()
+            );
+        }
+    }
+
+
     /**
      * Store a newly created product in storage.
      */
