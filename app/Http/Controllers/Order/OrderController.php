@@ -338,7 +338,7 @@ class OrderController extends Controller
     private function generateInvoiceCode()
     {
         $lastOrder = Order::latest()->first();
-        return $lastOrder ? 'ZT' . (intval(substr($lastOrder->invoice_code, 2)) + 1) : 'ZT1000';
+        return $lastOrder ? 'JG' . (intval(substr($lastOrder->invoice_code, 2)) + 1) : 'JG1000';
     }
 
     // Save order items

@@ -16,6 +16,8 @@ return new class extends Migration
             $table->string('name');
             $table->string('slug')->unique();
             $table->string('image')->nullable();
+            $table->integer('count_view')->default(0);
+            $table->integer('count_order')->default(0);
             $table->tinyInteger('status')->default(1);
             $table->timestamps();
         });

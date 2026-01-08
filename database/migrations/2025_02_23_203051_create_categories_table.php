@@ -19,6 +19,8 @@ return new class extends Migration
             $table->string('description')->nullable();
             $table->string('image')->nullable();
             $table->tinyInteger('status')->default(1);
+            $table->integer('count_view')->default(0);
+            $table->integer('count_order')->default(0);
             $table->timestamps();
         });
     }

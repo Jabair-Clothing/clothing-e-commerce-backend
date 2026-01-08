@@ -14,6 +14,8 @@ class ParentCategory extends Model
         'slug',
         'image',
         'status',
+        'count_view',
+        'count_order'
     ];
 
     public function categories()

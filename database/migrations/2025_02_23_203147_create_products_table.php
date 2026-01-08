@@ -27,6 +27,8 @@ return new class extends Migration
             $table->text('meta_description')->nullable();
             $table->text('meta_keywords')->nullable();
             $table->boolean('is_active')->default(true);
+            $table->integer('count_view')->default(0);
+            $table->integer('count_order')->default(0);
             $table->timestamps();
         });
     }

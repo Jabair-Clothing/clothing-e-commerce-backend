@@ -73,16 +73,27 @@ class ProductController extends Controller
 
     private function formatProducts($product)
     {
-        // total stock (ignore deleted skus if you use is_deleted)
-        $stockQty = $product->skus
-            ->where('is_deleted', 0)
-            ->sum('quantity');
+        // Get all SKUs
+        $activeSkus = $product->skus;
+
+        // Calculate total stock
+        $stockQty = $activeSkus->sum('quantity');
+
+        // Get minimum regular price and minimum discount price from SKUs
+        $minRegularPrice = $activeSkus->pluck('price')->filter()->min();
+        $minDiscountPrice = $activeSkus->pluck('discount_price')->filter()->min();
+
+        // The final price to display (discount if available, otherwise regular)
+        $finalMinPrice = $minDiscountPrice ?? $minRegularPrice;
 
         return [
             'id' => $product->id,
             'name' => $product->name,
             'slug' => $product->slug,
-            'price' => (string) $product->base_price,
+            'price' => $finalMinPrice ? (string) $finalMinPrice : (string) $product->base_price,
+            'regular_price' => $minRegularPrice ? (string) $minRegularPrice : (string) $product->base_price,
+            'discount_price' => $minDiscountPrice ? (string) $minDiscountPrice : null,
+            'base_price' => (string) $product->base_price,
             'is_active' => (bool) $product->is_active,
 
             'category' => $product->category ? [
@@ -99,9 +110,8 @@ class ProductController extends Controller
 
             'stock_quantity' => (int) $stockQty,
 
-            // add skus with attributes (NO sku image)
-            'skus' => $product->skus
-                ->where('is_deleted', 0)
+            // add skus with attributes
+            'skus' => $activeSkus
                 ->values()
                 ->map(function ($sku) {
 
@@ -122,7 +132,9 @@ class ProductController extends Controller
                     return [
                         'id'       => $sku->id,
                         'sku'      => $sku->sku,
-                        'price'    => (string) ($sku->discount_price ?? $sku->price),
+                        'price'    => (string) $sku->price,
+                        'discount_price' => $sku->discount_price ? (string) $sku->discount_price : null,
+                        'final_price' => (string) ($sku->discount_price ?? $sku->price),
                         'quantity' => (int) $sku->quantity,
                         'attributes' => $attributes,
                     ];
@@ -279,7 +291,15 @@ class ProductController extends Controller
     public function show($id)
     {
         try {
-            $product = Product::with(['images', 'skus.productImage', 'skus.skuAttributes.attribute', 'skus.skuAttributes.attributeValue', 'category', 'parentCategory'])->find($id);
+            $product = Product::with([
+                'images',
+                'skus.productImage',
+                'skus.skuAttributes.attribute',
+                'skus.skuAttributes.attributeValue',
+                'skus.skuAttributes.productImage',
+                'category',
+                'parentCategory'
+            ])->find($id);
 
             if (!$product) {
                 return $this->error('Product not found.', 404);
@@ -433,11 +453,19 @@ class ProductController extends Controller
      */
     private function formatProduct($product, $details = false)
     {
+        // Get minimum prices from SKUs
+        $minRegularPrice = $product->skus->pluck('price')->filter()->min();
+        $minDiscountPrice = $product->skus->pluck('discount_price')->filter()->min();
+        $finalMinPrice = $minDiscountPrice ?? $minRegularPrice;
+
         $data = [
             'id' => $product->id,
             'name' => $product->name,
             'slug' => $product->slug,
-            'price' => $product->base_price,
+            'price' => $finalMinPrice ? (string) $finalMinPrice : (string) $product->base_price,
+            'regular_price' => $minRegularPrice ? (string) $minRegularPrice : (string) $product->base_price,
+            'discount_price' => $minDiscountPrice ? (string) $minDiscountPrice : null,
+            'base_price' => (string) $product->base_price,
             'is_active' => (bool) $product->is_active,
             'category' => $product->category ? [
                 'id' => $product->category->id,
@@ -448,7 +476,7 @@ class ProductController extends Controller
                 'name' => $product->parentCategory->name
             ] : null,
             'primary_image' => $product->primaryImage ? $product->primaryImage->image_url : null,
-            'stock_quantity' => $product->skus->sum('quantity'), // Sum of all SKU quantities
+            'stock_quantity' => (int) $product->skus->sum('quantity'),
         ];
 
         if ($details) {
@@ -458,7 +486,8 @@ class ProductController extends Controller
                 return [
                     'id' => $img->id,
                     'url' => $img->image_url,
-                    'is_primary' => (bool) $img->is_primary
+                    'is_primary' => (bool) $img->is_primary,
+                    'sort_order' => $img->sort_order ?? 0
                 ];
             });
             $data['skus'] = $product->skus->map(function ($sku) {
@@ -474,8 +503,10 @@ class ProductController extends Controller
                 return [
                     'id' => $sku->id,
                     'sku' => $sku->sku,
-                    'price' => $sku->price,
-                    'quantity' => $sku->quantity,
+                    'price' => (string) $sku->price,
+                    'discount_price' => $sku->discount_price ? (string) $sku->discount_price : null,
+                    'final_price' => (string) ($sku->discount_price ?? $sku->price),
+                    'quantity' => (int) $sku->quantity,
                     'image' => $skuImage, // Fallback to attribute image
                     'attributes' => $sku->skuAttributes->map(function ($skuAttr) {
                         return [
