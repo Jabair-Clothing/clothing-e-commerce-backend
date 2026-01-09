@@ -26,3 +26,4 @@ Route::post('/products/view', [ProductController::class, 'productView']);
 Route::get('/products/top-selling', [ProductController::class, 'topSelling']);
 Route::get('/products/most-viewed', [ProductController::class, 'mostViewed']);
 
+// Search Route
