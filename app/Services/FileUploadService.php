@@ -59,7 +59,7 @@ class FileUploadService
      */
     public static function getUrl($path)
     {
-        return $path ? asset('storage/' . $path) : null;
+        return $path ? asset('storage/app/public/' . $path) : null;
     }
 
     /**
@@ -72,7 +72,7 @@ class FileUploadService
         }
 
         return array_map(function ($path) {
-            return asset('storage/' . $path);
+            return asset('storage/app/public/' . $path);
         }, $paths);
     }
 }
