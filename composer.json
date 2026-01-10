@@ -10,7 +10,7 @@
     "require": {
         "php": "^8.2",
         "guzzlehttp/guzzle": "^7.2",
-        "intervention/image": "*",
+        "intervention/image": "^3.0",
         "laravel/framework": "^10.10",
         "laravel/tinker": "^2.8",
         "php-open-source-saver/jwt-auth": "^2.8"
