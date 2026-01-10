@@ -145,7 +145,7 @@ class ProductController extends Controller
     public function topSelling(Request $request)
     {
         try {
-            $perPage = $request->input('limit', 10);
+            $perPage = $request->input('limit', 6);
             $search           = $request->input('search');
             $categoryId       = $request->input('category_id');
             $parentCategoryId = $request->input('parent_category_id');
