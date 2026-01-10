@@ -158,9 +158,17 @@ class ProductController extends Controller
                 'skus.skuAttributes.attribute',
                 'skus.skuAttributes.attributeValue',
             ])
-                ->where('count_order', '>=', 0)
-                ->orderBy('count_order', 'desc')
-                ->orderBy('created_at', 'desc');
+                ->withSum('orderItems as total_sold', 'quantity')
+                ->orderByDesc('total_sold')
+                ->orderByDesc('created_at');
+
+            // Only show products that have actually sold at least one item?
+            // User asked for "best selling", usually implies sold > 0.
+            // But if we want it to work exactly like index filtering-wise, we might keep 0-sold items at the bottom.
+            // The previous logic had: ->where('count_order', '>', 0)
+            // So I will replicate that logic using having.
+
+            $query->having('total_sold', '>', 0);
 
             if (!empty($search)) {
                 $query->where('name', 'like', '%' . $search . '%');
