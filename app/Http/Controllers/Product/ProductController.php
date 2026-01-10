@@ -158,7 +158,7 @@ class ProductController extends Controller
                 'skus.skuAttributes.attribute',
                 'skus.skuAttributes.attributeValue',
             ])
-                ->where('count_order', '>', 0)
+                ->where('count_order', '>=', 0)
                 ->orderBy('count_order', 'desc')
                 ->orderBy('created_at', 'desc');
 
