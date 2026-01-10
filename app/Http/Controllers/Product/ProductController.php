@@ -90,6 +90,7 @@ class ProductController extends Controller
             'id' => $product->id,
             'name' => $product->name,
             'slug' => $product->slug,
+            'short_description' => $product->short_description,
             'price' => $finalMinPrice ? (string) $finalMinPrice : (string) $product->base_price,
             'regular_price' => $minRegularPrice ? (string) $minRegularPrice : (string) $product->base_price,
             'discount_price' => $minDiscountPrice ? (string) $minDiscountPrice : null,
