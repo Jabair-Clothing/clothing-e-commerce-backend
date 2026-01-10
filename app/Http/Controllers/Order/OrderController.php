@@ -797,7 +797,9 @@ class OrderController extends Controller
                     'price' => $orderItem->price,
 
                     // product first image (your existing)
-                    'image' => $product?->images?->first(),
+                    'image' => ($img = $product?->images?->first())
+                        ? tap($img, fn($i) => $i->image_url = $i->image_url)
+                        : null,
 
                     //  attributes included
                     'attributes' => $attributes,
