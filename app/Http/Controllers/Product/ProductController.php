@@ -337,7 +337,7 @@ class ProductController extends Controller
                     $path = $image->store('products', 'public');
                     // Assuming you have storage linked: php artisan storage:link
                     // Or standard asset url
-                    $url = asset('storage/' . $path);
+                    $url = asset('storage/app/public/' . $path);
 
                     ProductImage::create([
                         'product_id' => $product->id,
@@ -651,7 +651,7 @@ class ProductController extends Controller
 
             $image = $request->file('image');
             $path = $image->store('products', 'public');
-            $url = asset('storage/' . $path);
+            $url = asset('storage/app/public/' . $path);
 
             // Create ProductImage
             $productImage = ProductImage::create([
