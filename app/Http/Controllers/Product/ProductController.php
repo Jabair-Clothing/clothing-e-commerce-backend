@@ -145,7 +145,10 @@ class ProductController extends Controller
     public function topSelling(Request $request)
     {
         try {
-            $perPage = $request->input('limit', 10);
+            $search           = $request->input('search');
+            $categoryId       = $request->input('category_id');
+            $parentCategoryId = $request->input('parent_category_id');
+            $status           = $request->input('status');
 
             $query = Product::with([
                 'primaryImage',
@@ -157,6 +160,22 @@ class ProductController extends Controller
                 ->where('count_order', '>', 0)
                 ->orderBy('count_order', 'desc')
                 ->orderBy('created_at', 'desc');
+
+            if (!empty($search)) {
+                $query->where('name', 'like', '%' . $search . '%');
+            }
+
+            if (!empty($categoryId)) {
+                $query->where('category_id', $categoryId);
+            }
+
+            if (!empty($parentCategoryId)) {
+                $query->where('parent_category_id', $parentCategoryId);
+            }
+
+            if ($status !== null) {
+                $query->where('is_active', filter_var($status, FILTER_VALIDATE_BOOLEAN));
+            }
 
             $products = $query->paginate($perPage);
 
@@ -180,7 +199,10 @@ class ProductController extends Controller
     public function mostViewed(Request $request)
     {
         try {
-            $perPage = $request->input('limit', 10);
+            $search           = $request->input('search');
+            $categoryId       = $request->input('category_id');
+            $parentCategoryId = $request->input('parent_category_id');
+            $status           = $request->input('status');
 
             $query = Product::with([
                 'primaryImage',
@@ -192,6 +214,22 @@ class ProductController extends Controller
                 ->where('count_view', '>', 0)
                 ->orderBy('count_view', 'desc')
                 ->orderBy('created_at', 'desc');
+
+            if (!empty($search)) {
+                $query->where('name', 'like', '%' . $search . '%');
+            }
+
+            if (!empty($categoryId)) {
+                $query->where('category_id', $categoryId);
+            }
+
+            if (!empty($parentCategoryId)) {
+                $query->where('parent_category_id', $parentCategoryId);
+            }
+
+            if ($status !== null) {
+                $query->where('is_active', filter_var($status, FILTER_VALIDATE_BOOLEAN));
+            }
 
             $products = $query->paginate($perPage);
 
