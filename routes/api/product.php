@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Product\ProductController;
 
+Route::get('/products/top-selling', [ProductController::class, 'topSelling']);
 
 Route::middleware('auth:api', 'role:admin,stuff,member')->group(function () {
     // Product Management Routes
@@ -23,5 +24,5 @@ Route::middleware('auth:api', 'role:admin,stuff,member')->group(function () {
 Route::get('/products', [ProductController::class, 'index']);
 Route::get('/products/{id}', [ProductController::class, 'show']);
 Route::post('/products/view', [ProductController::class, 'productView']);
-Route::get('/products/top-selling', [ProductController::class, 'topSelling']);
+
 Route::get('/products/most-viewed', [ProductController::class, 'mostViewed']);
