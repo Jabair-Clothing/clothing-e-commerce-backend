@@ -1436,8 +1436,13 @@ class OrderController extends Controller
                     ->join(', ');
 
                 // image priority: primary > first image
-                $image = $product?->primaryImage?->image_url
-                    ?? $product?->images?->first()?->image_url;
+                $primImg = $product?->primaryImage;
+                $firstImg = $product?->images?->first();
+                $imgObj = $primImg ?? $firstImg;
+
+                $image = $imgObj?->image_path
+                    ? asset('storage/app/public/' . $imgObj->image_path)
+                    : $imgObj?->image_url;
 
                 return [
                     'product_id'   => $product?->id,
