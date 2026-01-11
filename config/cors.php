@@ -11,6 +11,7 @@ return [
         'http://localhost:5173',
         'https://admin.jabaibgroup.com',
         'https://jabaibgroup.com',
+        'https://ecommerce.napver.com'
     ],
 
     'allowed_headers' => ['*'],
